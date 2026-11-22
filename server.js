@@ -481,7 +481,11 @@ const server=http.createServer((req,res)=>{
   }
   if(p==='/admin'&&ADMIN){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(ADMIN_PAGE)}
   if(p==='/'||p==='/index.html'){
-    fs.readFile(path.join(PUB,'index.html'),(e,d)=>{if(e){res.writeHead(500);return res.end('index.html missing')}res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'});res.end(d)});return;
+    /* look in public/ first, then next to server.js, so a flat upload to GitHub still works */
+    const tries=[path.join(PUB,'index.html'),path.join(__dirname,'index.html'),path.join(__dirname,'ExcaliburV2.html')];
+    const next=i=>{if(i>=tries.length){res.writeHead(500,{'Content-Type':'text/plain'});return res.end('The game file was not found. Put index.html inside a folder named public next to server.js (or next to server.js itself).')}
+      fs.readFile(tries[i],(e,d)=>{if(e)return next(i+1);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'});res.end(d)})};
+    next(0);return;
   }
   res.writeHead(404,{'Content-Type':'text/plain'});res.end('not found');
 });
