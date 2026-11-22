@@ -40,7 +40,8 @@ async function refreshIce(){
     if(METERED_DOMAIN&&METERED_KEY){
       if(!mBase)throw new Error('METERED_DOMAIN is empty or not understood');
       let r;try{r=await fetch(mBase+'/api/v1/turn/credentials?apiKey='+encodeURIComponent(METERED_KEY))}catch(e){throw new Error(netWhy(e,mBase))}
-      if(r.status===401||r.status===403)throw new Error('Metered rejected the API key (HTTP '+r.status+') at '+mBase+'. Copy the key again from your Metered app dashboard.');
+      if(r.status===401||r.status===403)throw new Error('Metered rejected the API key (HTTP '+r.status+') at '+mBase+'. METERED_API_KEY must be the "API Key" that belongs to a TURN credential in your Metered dashboard (TURN Server > Credentials): not your account secret key, and not the credential username or password. To test a key, open '+mBase+'/api/v1/turn/credentials?apiKey=YOURKEY in a browser: you should see a list of servers.');
+      if(r.status===404)throw new Error('Metered answered HTTP 404 at '+mBase+'. The app name in METERED_DOMAIN is probably wrong; copy it from your Metered dashboard (it looks like yourapp.metered.live).');
       if(!r.ok)throw new Error('Metered answered HTTP '+r.status+' at '+mBase);
       const l=await r.json();if(!Array.isArray(l)||!l.length)throw new Error('Metered returned no servers');iceCache={list:l,at:Date.now(),src:'Metered TURN'};console.log('Voice: Metered TURN ready ('+l.length+' servers from '+mBase+')');
     }else if(CF_ID&&CF_TOKEN){
