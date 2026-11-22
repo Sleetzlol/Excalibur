@@ -15,15 +15,38 @@ and the host-run multiplayer for Bedwars and Parkour.
 ## Environment variables
 | Name | What it does |
 | --- | --- |
-| `ADMIN_TOKEN` | Turns on `/admin` (reports page) and the admin endpoints. Use a long random value. |
+| `OWNER_PASSWORD` | Creates the account named `Owner` with this password (12+ characters) and turns on the in-game **Admin** tab for that account only. |
+| `OWNER_USERNAME` | Optional: use a different name for the owner account (default `Owner`). |
+| `ADMIN_TOKEN` | Turns on the web page `/admin` (reports) and the token endpoints. Use a long random value. |
 | `SUPABASE_URL`, `SUPABASE_KEY` | Store accounts in Supabase (below). Use the **service_role** key and keep it secret. |
 | `DATA_DIR` | Where `accounts.json` lives when Supabase is not used (default `./data`). |
 | `EMAIL_API_KEY`, `EMAIL_FROM` | Send email through Resend (below). |
 | `EMAIL_API_URL` | Another provider that accepts the same JSON (default `https://api.resend.com/emails`). |
 | `MAIL_DEV=1` | No provider yet? Emails are printed in the log and shown at `/admin/outbox`. Testing only. |
 | `ALLOWED_ORIGINS` | Comma separated list of sites allowed to connect, e.g. `https://excalibur.onrender.com`. Empty means any. |
-| `ICE_SERVERS` | JSON list of WebRTC servers for voice (add a TURN server here, see Voice). |
+| `METERED_DOMAIN`, `METERED_API_KEY` | Free TURN servers for voice from metered.ca (see Voice). |
+| `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` | Or Cloudflare's TURN service. |
+| `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | Or any TURN server you run or rent. `TURN_URL` can hold several addresses separated by commas. |
+| `ICE_SERVERS` | Advanced: a full JSON list of WebRTC servers. |
 | `TRUST_PROXY` | Leave on behind Render. `0` if the server is directly on the internet. |
+
+## Changing environment variables on Render
+1. dashboard.render.com, click your service.
+2. Left sidebar: **Environment**.
+3. **Add Environment Variable**, type the name in **Key** and the value in **Value** (repeat for more).
+4. **Save Changes**. Render redeploys automatically; watch the **Logs** tab for the startup lines.
+
+## The Owner admin panel
+Set `OWNER_PASSWORD` (12+ characters). On the next start the log says `Admin panel: on`. Sign in on the Account page with the username `Owner` and that password, and an **Admin** tab appears.
+Only that account sees it, nobody else can register the name `Owner`, and requests from anyone else get no answer at all.
+- **Overview:** live status (saving, email, voice), give coins to anyone including yourself, send an announcement, and see who is connected (with Kick).
+- **Players:** look up an account, add or set coins, unlock every cosmetic, ban (1 hour up to permanent) or lift a ban, mute or unmute.
+- **Chat:** delete single messages or clear a global channel; everyone sees it disappear live.
+- **Reports:** read the evidence and Dismiss, Mute for an hour, or Ban for a day.
+- **Audit log:** a record of everything you did.
+
+The owner account cannot be banned, muted or kicked. If you change `OWNER_PASSWORD`, the owner's password changes at the next restart. If an account called Owner already existed
+(someone registered it before this feature), it is taken over: its password is reset and its email removed. There is no two-factor sign-in, so use a long password; five wrong guesses lock the account for five minutes.
 
 ## Saving accounts (Supabase)
 Render's free plan wipes its disk on every restart, which would delete every account. Supabase's free plan fixes that.
@@ -34,6 +57,13 @@ Render's free plan wipes its disk on every restart, which would delete every acc
 
 The server saves a few seconds after any change. If Supabase cannot be reached when the server starts, it exits instead of running
 on an empty database (which could overwrite your real data); Render then restarts it and tries again.
+**If it does not start,** open the **Logs** tab: the line after `Supabase load failed:` says what is wrong.
+- *rejected the key*: use the **service_role** (or "secret", `sb_secret_...`) key from Project Settings > API, not the anon/publishable key. Paste it with no spaces.
+- *kv table was not found*: run `supabase.sql` in the SQL Editor, then restart.
+- *host could not be found*: `SUPABASE_URL` has a typo; it should look like `https://abcdxyz.supabase.co`.
+After it is running, the Admin overview shows whether saving is working, and shows the reason in red if it stops.
+Supabase free projects pause after about a week with no activity; restore the project from its dashboard if that happens.
+
 Without Supabase, accounts are kept in `accounts.json`, which only survives on a paid Render plan with a Persistent Disk (set `DATA_DIR` to its mount path).
 
 ## Email (verification, sign in, password reset)
@@ -66,10 +96,18 @@ Open `/admin`, paste your `ADMIN_TOKEN`, and you can Dismiss, Mute for an hour, 
     POST /admin/ban?token=T&name=USER&hours=24      suspend an account (hours=0 lifts it)
 
 ## Voice chat
-Peer to peer WebRTC; the server only passes the set-up messages, so audio never goes through it. Up to 8 people per room. The default uses Google's free STUN server,
-and **strict networks (many schools and offices) need a TURN server**. Get one from Metered, Twilio or Cloudflare and set, for example:
+Peer to peer WebRTC; the server only passes the set-up messages, so audio never goes through it. Up to 8 people per room.
+By default only Google's free **STUN** server is used, which works on many home connections but **not on strict networks (many schools, offices and mobile carriers)**. Those need a **TURN** server to relay the audio.
 
-    ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"},{"urls":"turn:YOUR.HOST:3478","username":"USER","credential":"PASS"}]
+Easiest free option, Metered:
+1. Make a free account at metered.ca and create an app.
+2. Copy the app's domain (like `yourapp.metered.live`) and its API key from the dashboard.
+3. On Render set `METERED_DOMAIN` and `METERED_API_KEY`.
+4. Admin > Overview should now say `Voice: Metered TURN`. If it says `STUN only`, check the Logs for `Voice: could not get TURN servers`.
+
+Cloudflare's TURN service (`CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`) and your own server (`TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL`) work too.
+In a room, the People list shows each voice connection's state, and if one fails you get a message saying why.
+You need to allow the microphone in the browser, and the site must be on https (Render does this for you). Headphones avoid echo.
 
 ## Limits the server enforces
 8 connections per address, 400 in all, 200 rooms, 5,000 accounts. Messages over 8 KB are refused; players sending far too many are slowed and then removed.
@@ -83,6 +121,7 @@ Names, colors, positions, RPC names and sizes are validated.
 - In Bedwars the host has the best connection to the game; others feel their network delay, and there is no movement prediction.
 - Crumbling platforms in Parkour react to your own runner only.
 - Voice and the Report button are not available inside Bedwars and Parkour matches yet, and the party system is still local to one browser.
+- The Metered and Cloudflare TURN set-ups were tested against stand-in servers, not the real services (Cloudflare's request format is from memory), so check Admin > Overview after you set one.
 - Rooms and global chat history are in memory and reset on restart.
 - There is no two-factor sign-in.
 - Email and Supabase were tested against stand-in servers, so the first real email and first real Supabase connection are worth trying out before you rely on them.

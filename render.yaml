@@ -1,25 +1,33 @@
 # Optional Render Blueprint: New > Blueprint, point it at your repo.
-# Fill in the values marked sync:false in the Render dashboard (they are secrets, so they are not stored here).
+# Values marked sync:false are secrets: Render asks for them in the dashboard and they are never stored in this file.
 services:
   - type: web
     name: excalibur
     runtime: node
     plan: free
-    buildCommand: ""
+    buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /healthz
     envVars:
       - key: ADMIN_TOKEN
         generateValue: true
-      # Keeps accounts when the free plan restarts (see README, "Saving accounts")
+      # In-game Admin panel for the account named Owner (12+ characters)
+      - key: OWNER_PASSWORD
+        sync: false
+      # Keeps accounts when the free plan restarts (README: Saving accounts)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
         sync: false
-      # Email for verification codes and password reset (see README, "Email")
+      # Email for verification codes and password reset (README: Email)
       - key: EMAIL_API_KEY
         sync: false
       - key: EMAIL_FROM
+        sync: false
+      # Free TURN servers so voice chat works on strict networks (README: Voice chat)
+      - key: METERED_DOMAIN
+        sync: false
+      - key: METERED_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false

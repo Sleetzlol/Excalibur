@@ -321,6 +321,7 @@ body.dragging{user-select:none}body.dragging iframe{pointer-events:none}
 .frow .grow{flex:1;min-width:0}.frow small{display:block;color:var(--mute);font-size:12px}.frow .btn{padding:6px 12px;min-height:0;font-size:13px}
 .fdot{width:10px;height:10px;border-radius:50%;background:#59627d;flex:none}.fdot.on{background:#4be37a;box-shadow:0 0 8px #4be37a}
 .chtabs{flex-wrap:wrap}.chtabs .btn{padding:6px 14px;font-size:13px}
+[data-v][hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -342,6 +343,7 @@ body.dragging{user-select:none}body.dragging iframe{pointer-events:none}
     <button data-v="chat">💬 Chat</button>
     <button data-v="friends">👥 Friends</button>
     <button data-v="account">🔑 Account</button>
+    <button data-v="admin" id="navadmin" hidden>🛠 Admin</button>
     <div class="me"><strong id="uname"></strong><span id="ucap">Click your name to change it</span>
       <div class="lv"><span id="lvl"></span><div class="xp"><div id="xpb"></div></div></div></div>
   </nav>
@@ -375,7 +377,7 @@ const store={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
 let coins=store.get('coins',100);
-const ACCHOOK={dirty(){}};let signedIn=false;
+const ACCHOOK={dirty(){}};let signedIn=false,signedOwner=false;
 let user=store.get('user','Guest'+Math.floor(1000+Math.random()*9000));
 const $=s=>document.querySelector(s);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e};
@@ -396,7 +398,7 @@ function float(txt,x,y,color){const e=el('div','float',txt);e.style.left=x+'px';
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function dailyState(){const last=store.get('daily',0),ready=Date.now()-last>864e5;const b=$('#daily');b.disabled=!ready;b.textContent=ready?'Daily +50':'Claimed'}
 $('#daily').onclick=()=>{store.set('daily',Date.now());setCoins(coins+50);toast('+50 coins')};
-function setUser(){$('#uname').textContent=(signedIn?'✓ ':'')+user;$('#ucap').textContent=signedIn?'Signed in to your account':'Guest. Click your name to change it'}
+function setUser(){const na=$('#navadmin');if(na)na.hidden=!signedOwner;$('#uname').textContent=(signedIn?'✓ ':'')+user;$('#ucap').textContent=signedIn?'Signed in to your account':'Guest. Click your name to change it'}
 $('#uname').onclick=()=>{if(signedIn){toast('Your name comes from your account');return}const n=(prompt('Pick a username (max 16 characters)',user)||'').trim().slice(0,16);if(n){user=n;store.set('user',n);setUser()}};
 
 /* ---------- Music and sound effects (all synthesized in the browser, no files) ---------- */
@@ -523,6 +525,7 @@ function render(){
   if(view==='chat')return renderChat(v);
   if(view==='friends')return renderFriends(v);
   if(view==='account')return renderAccount(v);
+  if(view==='admin')return renderAdmin(v);
   if(view.startsWith('info:'))return renderInfo(v,GAMES.find(g=>g.id===view.slice(5)));
 }
 
@@ -2548,7 +2551,7 @@ const NET=(()=>{
     sock.onopen=()=>{opened=true;clearTimeout(to)};
     sock.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
       if(m.t==='welcome'){id=m.id;if(Array.isArray(m.ice)&&m.ice.length)ice=m.ice;online=true;connecting=false;retry=0;ACC.config(m);readyRes();for(const s of sessions)s.rejoin();ACC.onWelcome();return}
-      if(/^(auth|friend|gift|wallet|g|email|reset|user|report)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){ACC.msg(m);return}
+      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){ACC.msg(m);return}
       receive(m)};
     sock.onclose=()=>{clearTimeout(to);const was=online;online=false;connecting=false;if(ws===sock)ws=null;readyRes();if(was){for(const s of sessions)s.connLost();ACC.onClose()}
       clearTimeout(rtimer);rtimer=setTimeout(connect,Math.min(30000,2000*(++retry)))};
@@ -2601,7 +2604,7 @@ const NETUI={
       const s=ctl.s,close=el('button','btn alt','Close');close.onclick=()=>{pp.hidden=true};
       if(!s||!s.players.size)lst.append(el('p','note','Nobody else is here yet.'));
       else for(const q of s.players.values()){
-        const d=el('div','rrow'),nm=el('span');nm.textContent=(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)');d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
+        const d=el('div','rrow'),nm=el('span');nm.textContent=(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)')+(VOICE.has(q.id)?'   🎙 '+VOICE.stateOf(q.id):'');d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
         if(q.acct&&ACC.name){
           if(!ACC.friends.some(f=>f.name===q.name)){const af=el('button','btn alt','Add friend');af.onclick=async()=>{const r=await ACC.friend('add',q.name);toast(r.ok?'Friend request sent':r.err);af.remove()};bs.append(af)}
           const gf=el('button','btn gold','Gift');gf.onclick=()=>giftDialog(q.name);bs.append(gf);
@@ -3031,25 +3034,28 @@ const ACC=(()=>{
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
   function applyWallet(u){quiet(u.coins);xp=u.xp;store.set('xp',xp);drawLv();owned=u.owned.slice();eq={...eq,...u.eq};store.set('owned',owned);store.set('eq',eq)}
-  const signed=(v)=>{signedIn=v;if(!v){A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
+  const signed=(v)=>{signedIn=v;if(!v){signedOwner=false;A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
   A.onClose=()=>fire('conn');
   A.msg=m=>{switch(m.t){
     case'auth.ok':A.name=m.user.name;A.info=m.user;A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
-      applyWallet(m.user);user=A.name;signedIn=true;setUser();done(m,{ok:true});fire('auth');fire('friends');break;
+      applyWallet(m.user);user=A.name;signedIn=true;signedOwner=!!m.user.owner;setUser();done(m,{ok:true});fire('auth');fire('friends');break;
     case'auth.err':if(!reqs.has(m.req)){A.token='';store.set('token','')}done(m,{ok:false,err:m.err});break;
     case'auth.out':signed(false);break;
     case'kicked':toast(m.reason);signed(false);break;
     case'friends':A.friends=m.list;fire('friends');break;
     case'friend.res':if(!NET.fail(m.req,m.err))done(m,m);break;
-    case'gift.res':case'email.res':case'reset.res':case'report.res':done(m,m);break;
-    case'user.update':A.info=m.user;fire('auth');break;
+    case'gift.res':case'email.res':case'reset.res':case'report.res':case'admin.res':done(m,m);break;
+    case'acct.push':if(m.coins!=null)quiet(m.coins);if(m.owned){owned=m.owned.slice();store.set('owned',owned)}toast('The owner updated your account');fire('wallet');break;
+    case'user.update':A.info=m.user;signedOwner=!!m.user.owner;setUser();fire('auth');break;
     case'gift.in':quiet(coins+m.amount);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
     case'wallet.set':quiet(m.coins);toast('The server corrected your balance.');break;
     case'g.history':chan(m.ch).msgs=m.msgs.slice();fire('chat');break;
     case'g.msg':{const c=chan(m.ch);c.msgs.push({from:m.from,text:m.text,ts:m.ts});if(c.msgs.length>100)c.msgs.shift();fire('chat');break}
     case'g.count':chan(m.ch).n=m.n;fire('chat');break;
+    case'g.del':{const c=chan(m.ch);c.msgs=c.msgs.filter(x=>!(x.ts===m.ts&&x.from===m.from));fire('chat');break}
+    case'g.clear':chan(m.ch).msgs=[];fire('chat');break;
   }};
   A.register=(u,p)=>A.req({t:'auth.register',u,p,w:{coins,xp,owned,eq}});
   A.login=(u,p)=>A.req({t:'auth.login',u,p});
@@ -3085,7 +3091,7 @@ const VOICE=(()=>{
     stream.getTracks().forEach(t=>pc.addTrack(t,stream));
     pc.onicecandidate=e=>{if(e.candidate&&sess)sess.rpc('vc.ice',{c:e.candidate.toJSON()},from)};
     pc.ontrack=e=>{const a=new Audio();a.autoplay=true;a.srcObject=e.streams[0];a.muted=p.muted;p.audio=a;a.play().catch(()=>{});p.lv=meter(e.streams[0])};
-    pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'||pc.connectionState==='closed')drop(from)};
+    pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'){const q=sess&&sess.players.get(from);toast('Voice could not connect to '+(q?q.name:'a player')+'. A network between you blocks direct connections, so the server needs a TURN server (see the README).')}if(pc.connectionState==='failed'||pc.connectionState==='closed')drop(from)};
     return p;
   }
   function drop(id){const p=peers.get(id);if(!p)return;peers.delete(id);try{p.pc.close()}catch(e){}if(p.audio)p.audio.srcObject=null;const q=sess&&sess.players.get(id);if(q)q.speaking=false}
@@ -3109,6 +3115,7 @@ const VOICE=(()=>{
     on=true;sess=s;muted=false;loc=meter(stream);iv=setInterval(tick,120);s.rpc('vc.hi',{r:0},'others');toast('Voice on. Headphones help avoid echo.');return true;
   };
   V.stop=()=>{if(!on)return;try{if(sess)sess.rpc('vc.bye',{},'others')}catch(e){}for(const k of[...peers.keys()])drop(k);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;on=false;clearInterval(iv);V.lvl=0;sess=null};
+  V.stateOf=id=>{const p=peers.get(id);return p?p.pc.connectionState:''};
   V.states=()=>[...peers.values()].map(p=>p.pc.connectionState);
   V.stats=async()=>{let n=0;for(const p of peers.values()){const r=await p.pc.getStats();r.forEach(x=>{if(x.type==='inbound-rtp'&&x.kind==='audio')n+=x.bytesReceived})}return n};
   V.mute=()=>{muted=!muted;if(stream)stream.getAudioTracks().forEach(t=>{t.enabled=!muted})};
@@ -3194,6 +3201,7 @@ function renderAccount(v){
     l.forEach(n=>{const d=el('div','rrow'),a=el('span');a.textContent=n;const b=el('button','btn alt','Unblock');b.onclick=()=>{ACC.unblock(n);draw()};d.append(a,b);d.style.marginTop='6px';p.append(d)});
   }
   const draw=()=>{
+    const kept=[...v.querySelectorAll('input')].map(i=>[i.getAttribute('aria-label'),i.value,i===document.activeElement]);   /* a reconnect or a tab switch must not wipe what you typed */
     v.innerHTML='';v.append(el('h1','','Account'),el('p','sub',ACC.name?'Signed in as '+ACC.name:mode==='reset'?'Reset your password':'Sign in to save your progress and use friends, gifts and global chat.'));
     const p=el('div','panel');p.style.maxWidth='460px';
     if(ACC.name){
@@ -3238,8 +3246,110 @@ function renderAccount(v){
       p.append(el('p','note',mode==='up'?'Your current coins, level and cosmetics move into the new account. Usernames are 3 to 16 letters, numbers or underscores; passwords need at least 8 characters.':'Signing in loads your saved coins, level and cosmetics from the server.'));
     }
     blockedBox(p);v.append(p);
+    for(const[lab,val,foc]of kept){const i=lab&&[...p.querySelectorAll('input')].find(x=>x.getAttribute('aria-label')===lab&&!x.value&&!x.readOnly);if(i&&val){i.value=val;if(foc)i.focus()}}
   };
   draw();const off=ACC.on(w=>{if(w==='auth'||w==='conn'||w==='wallet')draw()});stopLoop=off;
+}
+function renderAdmin(v){
+  v.append(el('h1','','Admin'));
+  if(!(ACC.info&&ACC.info.owner)){v.append(el('p','sub','This page is only for the server owner.'));return}
+  v.append(el('p','sub','Every action here is saved in the audit log.'));
+  let tab='over',timer=0,off=null,who='',chCur='general';
+  const tabs=el('div','row chtabs'),body=el('div');tabs.style.marginTop='0';v.append(tabs,body);
+  const call=async(a,o)=>{const r=await ACC.req({t:'admin.'+a,...(o||{})});if(!r.ok)toast(r.err||'That did not work');return r};
+  const btn=(t,cls,fn)=>{const b=el('button','btn '+cls,t);b.onclick=fn;return b};
+  const box=title=>{const p=el('div','panel');p.style.cssText='max-width:880px;margin-bottom:14px';if(title)p.append(el('h2','',title));return p};
+  const inp=(ph,w,type)=>{const i=el('input','num');if(type)i.type=type;i.placeholder=ph;i.style.width=w||'200px';i.setAttribute('aria-label',ph);return i};
+  const when=t=>new Date(t).toLocaleString();
+  const stopAll=()=>{clearInterval(timer);if(off){off();off=null}if(ACC.cur){NET.sendRaw({t:'g.leave',ch:ACC.cur});ACC.cur=null}};
+  const setTab=t=>{stopAll();tab=t;draw()};
+  function draw(){
+    tabs.innerHTML='';[['over','Overview'],['pl','Players'],['chat','Chat'],['rep','Reports'],['log','Audit log']].forEach(([k,n])=>tabs.append(btn(n,k===tab?'':'alt',()=>setTab(k))));
+    body.innerHTML='';({over:overview,pl:players,chat:chat,rep:reports,log:audit})[tab]();
+  }
+  function overview(){
+    const srv=box('Server'),give=box('Give coins'),ann=box('Announcement to everyone online'),pl=box('Connected now');
+    const row=el('div','row'),nm=inp('Username','170px'),am=inp('Amount','140px','number');nm.value=ACC.name;am.value=1000;
+    const doCoins=async mode=>{const r=await call('coins',{name:nm.value.trim(),amount:+am.value,mode});if(r.ok)toast(nm.value.trim()+' now has '+r.coins.toLocaleString()+' coins')};
+    row.append(nm,am,btn('Add','gold',()=>doCoins('add')),btn('Set to','alt',()=>doCoins('set')));give.append(row);
+    const r2=el('div','row'),tx=inp('Message (shown to everyone as a notice)','420px');tx.maxLength=200;
+    r2.append(tx,btn('Send','gold',async()=>{const r=await call('announce',{text:tx.value});if(r.ok){toast('Sent');tx.value=''}}));ann.append(r2);
+    body.append(srv,give,ann,pl);
+    const load=async()=>{
+      const r=await call('state');if(tab!=='over'||!r.ok)return;const s=r.s;
+      srv.innerHTML='';srv.append(el('h2','','Server'));
+      const l1=el('p','note');l1.textContent=s.connections+' connected   ·   '+s.accounts+' accounts   ·   '+s.rooms+' rooms   ·   '+s.openReports+' open reports';
+      const l2=el('p','note');l2.textContent='Saving: '+(s.storage.mode==='supabase'?'Supabase':'a file on the server (lost when a free Render server restarts)')+' - '+(s.storage.ok===false?'PROBLEM: '+s.storage.err:s.storage.ok?'working':'not saved yet');if(s.storage.ok===false)l2.style.color='#ffb3b3';
+      const l3=el('p','note');l3.textContent='Email: '+(s.mail==='off'?'not set up':s.mail==='log'?'dev mode (codes only appear in the server log)':'on')+'   ·   Voice: '+s.turn;
+      srv.append(l1,l2,l3);
+      pl.innerHTML='';pl.append(el('h2','','Connected now'));
+      s.players.forEach(x=>{const d=el('div','frow'),g=el('div','grow'),n=el('b');n.textContent=x.name+(x.acct?'':'  (guest)');const sm=el('small');sm.textContent=(x.room||'not in a room')+'   ·   '+x.ip;g.append(n,sm);d.append(g);
+        if(x.acct&&x.acct!==ACC.name)d.append(btn('Manage','alt',()=>{who=x.acct;setTab('pl')}));
+        if(x.acct!==ACC.name)d.append(btn('Kick','alt',async()=>{if(confirm('Disconnect '+x.name+'?')){await call('kick',{id:x.id});load()}}));pl.append(d)});
+    };
+    load();timer=setInterval(load,6000);
+  }
+  function players(){
+    const p=box('Find a player'),row=el('div','row'),nm=inp('Username','200px'),out=el('div');nm.value=who;
+    const look=async()=>{
+      who=nm.value.trim();out.innerHTML='';if(!who)return;const r=await call('lookup',{name:who});if(!r.ok)return;const u=r.u,c=el('div');c.style.marginTop='12px';
+      c.append(el('h3','',u.name+(u.owner?'  (owner)':'')+'   ·   '+(u.online?'online':'offline')));
+      const info=el('p','note');info.textContent=u.coins.toLocaleString()+' coins   ·   '+u.xp.toLocaleString()+' xp   ·   '+u.owned+' cosmetics   ·   '+u.friends+' friends   ·   joined '+new Date(u.created).toLocaleDateString()+(u.email?'   ·   email '+u.email+(u.verified?' (verified)':''):'');c.append(info);
+      if(u.ban){const x=el('p','note');x.style.color='#ffb3b3';x.textContent='Banned until '+when(u.ban);c.append(x)}
+      if(u.muted){const x=el('p','note');x.style.color='#ffd28a';x.textContent='Muted until '+when(u.muted);c.append(x)}
+      const r1=el('div','row'),am=inp('Amount','140px','number');am.value=1000;
+      const co=async mode=>{const x=await call('coins',{name:u.name,amount:+am.value,mode});if(x.ok){toast(u.name+' now has '+x.coins.toLocaleString()+' coins');look()}};
+      r1.append(am,btn('Add coins','gold',()=>co('add')),btn('Set coins','alt',()=>co('set')),btn('Unlock all cosmetics','alt',async()=>{const x=await call('unlockall',{name:u.name,ids:COS.map(k=>k.id)});if(x.ok){toast('Unlocked everything for '+u.name);look()}}));c.append(r1);
+      if(!u.owner){
+        const r3=el('div','row');r3.append(el('span','note','Ban: '));
+        [['1 hour',1],['1 day',24],['7 days',168],['Permanent',87600]].forEach(([t,h])=>r3.append(btn(t,'alt',async()=>{if(confirm('Ban '+u.name+' for '+t+'?')){const x=await call('ban',{name:u.name,hours:h});if(x.ok){toast('Banned');look()}}})));
+        r3.append(btn('Lift ban','gold',async()=>{const x=await call('ban',{name:u.name,hours:0});if(x.ok){toast('Ban lifted');look()}}));c.append(r3);
+        const r4=el('div','row');r4.append(el('span','note','Mute: '));
+        [['10 minutes',10],['1 hour',60],['1 day',1440]].forEach(([t,m])=>r4.append(btn(t,'alt',async()=>{const x=await call('mute',{name:u.name,minutes:m});if(x.ok){toast('Muted');look()}})));
+        r4.append(btn('Unmute','gold',async()=>{const x=await call('mute',{name:u.name,minutes:0});if(x.ok){toast('Unmuted');look()}}));c.append(r4);
+      }
+      if(u.ledger.length){c.append(el('h3','','Recent activity'));u.ledger.slice().reverse().forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.text;b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='4px';c.append(d)})}
+      out.append(c);
+    };
+    nm.onkeydown=e=>{if(e.key==='Enter')look()};row.append(nm,btn('Look up','gold',look));p.append(row,out);body.append(p);if(who)look();
+  }
+  function chat(){
+    const p=box('Global chat'),tc=el('div','row chtabs'),list=el('div','msgs');tc.style.marginTop='0';
+    const render=()=>{
+      tc.innerHTML='';ACC.chans.forEach(c=>tc.append(btn('# '+c,c===chCur?'':'alt',()=>{if(ACC.cur&&ACC.cur!==c)NET.sendRaw({t:'g.leave',ch:ACC.cur});chCur=c;ACC.cur=c;ACC.join(c);render()})));
+      list.innerHTML='';const msgs=ACC.channel(chCur).msgs;if(!msgs.length)list.append(el('p','note','No messages here.'));
+      for(const m of msgs){
+        const d=el('div','msg');d.style.cssText='text-align:left;display:flex;gap:8px;align-items:baseline';
+        const t=el('span');t.style.cssText='color:var(--mute);font-size:12px';t.textContent=new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        const b=el('b');b.textContent=m.from;const x=el('span');x.textContent=m.text;x.style.flex='1';
+        const del=btn('Delete','alt',async()=>{await call('delmsg',{ch:chCur,ts:m.ts,from:m.from})});del.style.cssText='padding:2px 10px;min-height:0;font-size:12px';
+        d.append(t,b,x,del);list.append(d);
+      }
+      list.scrollTop=1e9;
+    };
+    const row=el('div','row');row.append(btn('Clear this channel','alt',async()=>{if(confirm('Delete every message in #'+chCur+'?'))await call('clear',{ch:chCur})}));
+    p.append(tc,list,row);body.append(p);ACC.cur=chCur;ACC.join(chCur);render();off=ACC.on(w=>{if(w==='chat'&&tab==='chat')render()});
+  }
+  async function reports(){
+    const r=await call('reports');if(tab!=='rep'||!r.ok)return;const p=box('Open reports');
+    if(!r.reports.length)p.append(el('p','note','No open reports.'));
+    r.reports.forEach(x=>{
+      const d=el('div','frow');d.style.flexDirection='column';d.style.alignItems='stretch';
+      const h=el('b');h.textContent=x.target+(x.acct?'':' (guest)')+'   ·   '+x.reason;const sm=el('small');sm.textContent='reported by '+x.byName+'   ·   '+when(x.ts)+(x.room?'   ·   '+x.room.name:'');d.append(h,sm);
+      if(x.note){const n=el('p','note');n.textContent='"'+x.note+'"';d.append(n)}
+      if(x.evidence&&x.evidence.length){const pre=el('pre');pre.style.cssText='white-space:pre-wrap;font-size:12px;background:rgba(0,0,0,.25);padding:8px;border-radius:8px;margin:6px 0';pre.textContent=x.evidence.map(e=>e.from+': '+e.text).join('\n');d.append(pre)}
+      const row=el('div','row');row.style.marginTop='4px';
+      for(const[a,t]of[['dismiss','Dismiss'],['mute','Mute 1 hour'],['ban','Ban 24 hours']])row.append(btn(t,a==='dismiss'?'alt':'gold',async()=>{const z=await call('resolve',{id:x.id,action:a});if(z.ok){toast('Done');draw()}}));
+      d.append(row);p.append(d);
+    });
+    body.append(p);
+  }
+  async function audit(){
+    const r=await call('audit');if(tab!=='log'||!r.ok)return;const p=box('Audit log');if(!r.log.length)p.append(el('p','note','Nothing yet.'));
+    r.log.forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.a+(x.x?'   ·   '+x.x:'')+(x.d?'   ·   '+x.d:'');b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='6px';p.append(d)});
+    body.append(p);
+  }
+  draw();stopLoop=stopAll;
 }
 function renderChat(v){
   v.append(el('h1','','Chat'),el('p','sub','Global channels shared by everyone online'));

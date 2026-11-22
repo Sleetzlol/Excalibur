@@ -11,6 +11,11 @@
      EMAIL_API_KEY / EMAIL_FROM    send verification and password-reset email through Resend (https://resend.com)
      EMAIL_API_URL    use another provider that accepts the same JSON (default https://api.resend.com/emails)
      MAIL_DEV=1       no provider yet? print emails to the log and show them at /admin/outbox (testing only)
+     OWNER_PASSWORD   password for the account named Owner (12+ characters). Turns on the in-game Admin panel for that account only
+     OWNER_USERNAME   change the owner's name (default Owner)
+     METERED_DOMAIN / METERED_API_KEY   free TURN server for voice chat from metered.ca (see README)
+     CF_TURN_KEY_ID / CF_TURN_API_TOKEN  or Cloudflare's TURN service
+     TURN_URL / TURN_USERNAME / TURN_CREDENTIAL   or any other TURN server you run or rent
      TRUST_PROXY      set to 0 if you are NOT behind a proxy (Render is, so the default is on)      */
 const http=require('http'),crypto=require('crypto'),fs=require('fs'),path=require('path');
 const PORT=+process.env.PORT||8080;
@@ -18,6 +23,21 @@ const ALLOWED=(process.env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filt
 const ADMIN=process.env.ADMIN_TOKEN||'';
 const TRUST=process.env.TRUST_PROXY!=='0';
 let ICE=[{urls:'stun:stun.l.google.com:19302'}];try{if(process.env.ICE_SERVERS)ICE=JSON.parse(process.env.ICE_SERVERS)}catch(e){console.error('ICE_SERVERS is not valid JSON')}
+if(process.env.TURN_URL)ICE=ICE.concat([{urls:process.env.TURN_URL.split(',').map(x=>x.trim()).filter(Boolean),username:(process.env.TURN_USERNAME||'').trim(),credential:(process.env.TURN_CREDENTIAL||'').trim()}]);
+let iceCache={list:ICE,at:0,src:(process.env.TURN_URL||process.env.ICE_SERVERS)?'custom TURN/ICE servers':'STUN only (no TURN: strict networks will not connect)'};
+const METERED_DOMAIN=(process.env.METERED_DOMAIN||'').trim(),METERED_KEY=(process.env.METERED_API_KEY||'').trim(),CF_ID=(process.env.CF_TURN_KEY_ID||'').trim(),CF_TOKEN=(process.env.CF_TURN_API_TOKEN||'').trim();
+async function refreshIce(){
+  try{
+    if(METERED_DOMAIN&&METERED_KEY){
+      const r=await fetch((/^https?:\/\//.test(METERED_DOMAIN)?METERED_DOMAIN.replace(/\/+$/,''):'https://'+METERED_DOMAIN)+'/api/v1/turn/credentials?apiKey='+encodeURIComponent(METERED_KEY));if(!r.ok)throw new Error('Metered answered HTTP '+r.status);
+      const l=await r.json();if(!Array.isArray(l)||!l.length)throw new Error('Metered returned no servers');iceCache={list:l,at:Date.now(),src:'Metered TURN'};console.log('Voice: Metered TURN ready ('+l.length+' servers)');
+    }else if(CF_ID&&CF_TOKEN){
+      const r=await fetch((process.env.CF_TURN_API_BASE||'https://rtc.live.cloudflare.com')+'/v1/turn/keys/'+encodeURIComponent(CF_ID)+'/credentials/generate',{method:'POST',headers:{Authorization:'Bearer '+CF_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})});
+      if(!r.ok)throw new Error('Cloudflare answered HTTP '+r.status);const j=await r.json();if(!j.iceServers)throw new Error('Cloudflare returned no servers');
+      iceCache={list:[].concat(j.iceServers),at:Date.now(),src:'Cloudflare TURN'};console.log('Voice: Cloudflare TURN ready');
+    }
+  }catch(e){console.error('Voice: could not get TURN servers:',e.message)}
+}
 const GUID='258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},bedwars:{label:'Bedwars',max:16},parkour:{label:'Parkour',max:8}};
 const GCH=['general','lfg','casino'];
@@ -25,36 +45,53 @@ const LIM={maxPayload:8192,rpcMax:7000,perIp:+process.env.PER_IP||8,global:400,m
   accounts:5000,authPerMin:+process.env.AUTH_PER_MIN||10,giftMax:5000,giftDay:5000,tokenDays:30,startCoinsMax:20000};
 const BAD=['fuck','shit','bitch','asshole','cunt','nigg','fag'];   /* tiny starter filter, extend as you like */
 const RESERVED=new Set(['admin','administrator','moderator','mod','system','server','excalibur','support','staff','guest','null','undefined']);
+const OWNER_NAME=((process.env.OWNER_USERNAME||'Owner').trim().replace(/[^A-Za-z0-9_]/g,'')||'Owner'),OWNER_KEY=OWNER_NAME.toLowerCase(),OWNER_PW=process.env.OWNER_PASSWORD||'';
+RESERVED.add(OWNER_KEY);   /* nobody can register the owner's name; the account is created from OWNER_PASSWORD */
 const conns=new Map(),rooms=new Map(),bans=new Map(),perIp=new Map(),online=new Map(),authLog=new Map(),reportLog=new Map();
 
 /* ---------- storage: a JSON file, or one row in Supabase. Swap loadDb/flush for any other database. ---------- */
 const DATA=process.env.DATA_DIR||path.join(__dirname,'data');
 try{fs.mkdirSync(DATA,{recursive:true})}catch(e){}
 const DB_FILE=path.join(DATA,'accounts.json');
-const SB_URL=(process.env.SUPABASE_URL||'').replace(/\/+$/,''),SB_KEY=process.env.SUPABASE_KEY||'',useSB=!!(SB_URL&&SB_KEY);
-const sbH={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'};
-let db={v:1,accounts:{},tokens:{},reports:[]};
+const SB_URL=(process.env.SUPABASE_URL||'').trim().replace(/\/+$/,'').replace(/\/rest\/v1$/,''),SB_KEY=(process.env.SUPABASE_KEY||'').trim().replace(/^["']|["']$/g,''),useSB=!!(SB_URL&&SB_KEY);
+const sbH={apikey:SB_KEY,'Content-Type':'application/json'};if(SB_KEY&&!SB_KEY.startsWith('sb_'))sbH.Authorization='Bearer '+SB_KEY;   /* new-style sb_secret_ keys go in the apikey header only */
+const storage={mode:useSB?'supabase':'file',ok:null,at:0,err:''};
+let db={v:1,accounts:{},tokens:{},reports:[],audit:[]};
 const emailIndex=new Map();
 const indexEmails=()=>{emailIndex.clear();for(const k in db.accounts){const a=db.accounts[k];if(a.email&&a.emailVerified)emailIndex.set(a.email,k)}};
+function sbExplain(status,body,err){
+  if(err){const code=String(err.cause&&err.cause.code||'');return/ENOTFOUND|EAI_AGAIN/.test(code)?'The SUPABASE_URL host could not be found. Check it for typos; it should look like https://abcdxyz.supabase.co':'Could not reach Supabase: '+(err.cause&&err.cause.message||err.message)}
+  if(status===401||status===403)return 'Supabase rejected the key (HTTP '+status+'). Use the service_role (or "secret") key from Project Settings > API, pasted with no spaces or quotes. Not the anon/publishable key.';
+  if(status===404||/PGRST205|PGRST106|does not exist|schema cache/i.test(body))return 'The kv table was not found (HTTP '+status+'). Open Supabase > SQL Editor, run the contents of supabase.sql, then restart the server. Also check SUPABASE_URL is your Project URL.';
+  return 'Supabase answered HTTP '+status+': '+String(body).slice(0,200);
+}
+async function sbCall(method,pathq,body,extra){
+  try{const r=await fetch(SB_URL+pathq,{method,headers:{...sbH,...(extra||{})},body});return{ok:r.ok,status:r.status,text:await r.text()}}
+  catch(e){return{ok:false,status:0,text:'',err:e}}
+}
 async function loadDb(){
   if(useSB){
+    console.log('Supabase: connecting to '+SB_URL);
     for(let i=0;;i++){
-      try{const r=await fetch(SB_URL+'/rest/v1/kv?key=eq.db&select=value',{headers:sbH});if(!r.ok)throw new Error('HTTP '+r.status);
-        const rows=await r.json();if(rows[0]&&rows[0].value)db=Object.assign(db,rows[0].value);console.log('Accounts loaded from Supabase');break}
-      catch(e){console.error('Supabase load failed:',e.message);
-        if(i>=4){console.error('Refusing to start without the database (running on an empty one could overwrite your real data).');process.exit(1)}
-        await new Promise(r=>setTimeout(r,2000))}
+      const r=await sbCall('GET','/rest/v1/kv?key=eq.db&select=value');
+      if(r.ok){let rows=[];try{rows=JSON.parse(r.text)}catch(e){}if(rows[0]&&rows[0].value)db=Object.assign(db,rows[0].value);storage.ok=true;storage.at=Date.now();
+        console.log('Accounts loaded from Supabase ('+Object.keys(db.accounts||{}).length+' accounts)');break}
+      storage.ok=false;storage.err=sbExplain(r.status,r.text,r.err);console.error('Supabase load failed: '+storage.err);
+      if(i>=3){console.error('Refusing to start without the database (running on an empty one could overwrite your real data). Fix the problem above, or delete SUPABASE_URL and SUPABASE_KEY to run without Supabase.');process.exit(1)}
+      await new Promise(r=>setTimeout(r,2000));
     }
-  }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')))}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};indexEmails();
+  }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];indexEmails();
 }
 let dirty=false,saving=false;const touch=()=>{dirty=true};
 async function flush(){
   if(!dirty||saving)return;dirty=false;saving=true;
-  try{
-    if(useSB){const r=await fetch(SB_URL+'/rest/v1/kv?on_conflict=key',{method:'POST',headers:{...sbH,Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify([{key:'db',value:db}])});if(!r.ok)throw new Error('HTTP '+r.status)}
-    else{const tmp=DB_FILE+'.tmp';fs.writeFileSync(tmp,JSON.stringify(db));fs.renameSync(tmp,DB_FILE)}
-  }catch(e){dirty=true;console.error('save failed:',e.message)}
+  if(useSB){
+    const r=await sbCall('POST','/rest/v1/kv?on_conflict=key',JSON.stringify([{key:'db',value:db}]),{Prefer:'resolution=merge-duplicates,return=minimal'});
+    if(r.ok){storage.ok=true;storage.at=Date.now();storage.err=''}else{dirty=true;storage.ok=false;storage.err=sbExplain(r.status,r.text,r.err);console.error('Supabase save failed: '+storage.err)}
+  }else{
+    try{const tmp=DB_FILE+'.tmp';fs.writeFileSync(tmp,JSON.stringify(db));fs.renameSync(tmp,DB_FILE);storage.ok=true;storage.at=Date.now()}catch(e){dirty=true;storage.ok=false;storage.err=e.message;console.error('save failed:',e.message)}
+  }
   saving=false;
 }
 setInterval(flush,useSB?4000:2000).unref();
@@ -93,7 +130,7 @@ const maskEmail=e=>{if(!e)return'';const[u,d]=e.split('@');return u[0]+'***@'+d}
 const mkCode=()=>String(crypto.randomInt(0,1000000)).padStart(6,'0');
 const hCode=(c,salt)=>sha(c+':'+salt);
 const timingEq=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b)};
-const userView=a=>({name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
+const userView=a=>({name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&!!OWNER_PW,email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
 const revokeTokens=a=>{for(const h in db.tokens)if(db.tokens[h].k===a.key)delete db.tokens[h]};
 const kickAccount=(a,reason)=>{const oc=online.get(a.key);if(oc){oc.send({t:'kicked',reason});oc.kill(1000,'signed out')}};
 function ledger(a,text){a.ledger.push({t:Date.now(),text});if(a.ledger.length>50)a.ledger.shift()}
@@ -373,8 +410,60 @@ function reportMsg(c,m){
   db.reports.push({id:crypto.randomBytes(4).toString('hex'),ts:now,by:who,byName:c.acct?c.acct.name:(c.p&&c.p.name)||'guest',tk,target:tn,acct:!!tAcct,reason,note:clean(m.note,200),room,evidence,open:true});
   if(db.reports.length>500)db.reports.splice(0,db.reports.length-500);touch();
   const people=new Set(db.reports.filter(r=>r.tk===tk&&r.open&&now-r.ts<3600e3).map(r=>r.by));
-  if(people.size>=3){const until=now+15*60000;if(tAcct)tAcct.muted=Math.max(tAcct.muted||0,until);if(tc)tc.muteUntil=until;touch();console.log('[auto-mute] '+tn+' after '+people.size+' reports')}
+  if(people.size>=3&&!(tAcct&&tAcct.key===OWNER_KEY)){const until=now+15*60000;if(tAcct)tAcct.muted=Math.max(tAcct.muted||0,until);if(tc)tc.muteUntil=until;touch();console.log('[auto-mute] '+tn+' after '+people.size+' reports')}
   reply(true);
+}
+
+/* ---------- owner admin panel: only the account named OWNER_USERNAME (default Owner), and only when OWNER_PASSWORD is set ---------- */
+async function ensureOwner(){
+  if(!OWNER_PW){console.log('Admin panel: off. Set OWNER_PASSWORD (12+ characters) to create the "'+OWNER_NAME+'" account.');return}
+  if(OWNER_PW.length<12){console.error('Admin panel: OFF because OWNER_PASSWORD is shorter than 12 characters.');return}
+  const sig=sha('owner:'+OWNER_PW);let a=db.accounts[OWNER_KEY];
+  if(a&&a.envSig===sig){console.log('Admin panel: on (account "'+a.name+'")');return}
+  const salt=crypto.randomBytes(16),hash=await pwHash(OWNER_PW,salt);
+  if(!a){a={name:OWNER_NAME,key:OWNER_KEY,created:Date.now(),coins:1000,xp:0,owned:cosList(null),eq:eqObj(null),friends:{},ledger:[],gift:{d:'',n:0},lastSync:Date.now(),fails:0,lock:0,muted:0,email:'',emailVerified:false,ban:0};db.accounts[OWNER_KEY]=a}
+  else if(!a.envSig){if(a.email)emailIndex.delete(a.email);a.email='';a.emailVerified=false;console.log('Admin panel: an account named "'+a.name+'" already existed, so it was taken over (password reset, email removed).')}
+  a.salt=salt.toString('hex');a.hash=hash.toString('hex');a.envSig=sig;a.fails=0;a.lock=0;a.ban=0;a.muted=0;revokeTokens(a);touch();
+  console.log('Admin panel: on (account "'+a.name+'" now uses OWNER_PASSWORD)');
+}
+const isOwner=c=>!!(OWNER_PW.length>=12&&c.acct&&c.acct.key===OWNER_KEY);
+function audit(action,target,detail){db.audit.push({t:Date.now(),a:action,x:String(target||''),d:String(detail||'')});if(db.audit.length>300)db.audit.splice(0,db.audit.length-300);touch()}
+const pushTo=(a,o)=>{const c=online.get(a.key);if(c)c.send(o)};
+function adminMsg(c,m){
+  if(!isOwner(c))return;   /* anyone else is ignored without an answer */
+  const ok=x=>c.send({t:'admin.res',req:m.req,ok:true,...x}),no=e=>c.send({t:'admin.res',req:m.req,ok:false,err:e});
+  const acct=()=>db.accounts[key(m.name)]||null,notOwner=a=>a.key!==OWNER_KEY;
+  switch(m.t){
+    case'admin.state':return ok({s:{connections:conns.size,accounts:Object.keys(db.accounts).length,rooms:rooms.size,openReports:db.reports.filter(r=>r.open).length,mail:mailMode,turn:iceCache.src,
+      storage:{mode:storage.mode,ok:storage.ok,at:storage.at,err:storage.err},
+      players:[...conns.values()].map(x=>({id:x.id,name:x.p?x.p.name:(x.acct?x.acct.name:'(browsing)'),acct:x.acct?x.acct.name:'',room:x.room&&rooms.get(x.room)?rooms.get(x.room).name:'',ip:x.ip})).slice(0,200)}});
+    case'admin.lookup':{const a=acct();if(!a)return no('No account with that name.');const now=Date.now();
+      return ok({u:{name:a.name,coins:a.coins,xp:a.xp,created:a.created,online:!!online.get(a.key),email:a.email?maskEmail(a.email):'',verified:!!a.emailVerified,ban:a.ban>now?a.ban:0,muted:a.muted>now?a.muted:0,friends:Object.keys(a.friends||{}).length,owned:(a.owned||[]).length,ledger:(a.ledger||[]).slice(-5),owner:!notOwner(a)}})}
+    case'admin.coins':{const a=acct();if(!a)return no('No account with that name.');const amt=Math.floor(+m.amount);
+      if(!Number.isFinite(amt)||Math.abs(amt)>1e9)return no('Use a whole number up to 1,000,000,000.');
+      const n=m.mode==='set'?amt:a.coins+amt;a.coins=Math.max(0,Math.min(1e9,n));a.lastSync=Date.now();
+      ledger(a,m.mode==='set'?'The owner set your balance to '+a.coins:'The owner '+(amt>=0?'added ':'removed ')+Math.abs(amt)+' coins');audit('coins',a.name,(m.mode==='set'?'set to ':'add ')+amt);touch();
+      pushTo(a,{t:'acct.push',coins:a.coins});return ok({coins:a.coins})}
+    case'admin.unlockall':{const a=acct();if(!a)return no('No account with that name.');a.owned=cosList([...(a.owned||[]),...(Array.isArray(m.ids)?m.ids:[])]);audit('unlock cosmetics',a.name,a.owned.length+' items');touch();pushTo(a,{t:'acct.push',owned:a.owned});return ok({owned:a.owned.length})}
+    case'admin.ban':{const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('You cannot ban the owner account.');
+      const h=+m.hours;if(!(h>=0)||h>87600)return no('Hours must be between 0 (lifts a ban) and 87600.');
+      a.ban=h>0?Date.now()+h*3600e3:0;if(h>0){revokeTokens(a);kickAccount(a,'Your account has been suspended.')}audit(h>0?'ban':'unban',a.name,h>0?h+'h '+clean(m.reason,80):'');touch();return ok({})}
+    case'admin.mute':{const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('You cannot mute the owner account.');
+      const mi=+m.minutes;if(!(mi>=0)||mi>525600)return no('Minutes must be between 0 (unmute) and 525600.');
+      a.muted=mi>0?Date.now()+mi*60000:0;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted;audit(mi>0?'mute':'unmute',a.name,mi>0?mi+' min':'');touch();return ok({})}
+    case'admin.kick':{const t=conns.get(String(m.id||''));if(!t)return no('That player already left.');if(t.acct&&t.acct.key===OWNER_KEY)return no('You cannot kick yourself.');
+      if(m.ban)bans.set(t.ip,Date.now()+LIM.banMs);audit('kick',t.p?t.p.name:t.id,m.ban?'address blocked 10 min':'');t.kill(1008,'removed');return ok({})}
+    case'admin.delmsg':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');const i=ghist[ch].findIndex(x=>x.ts===m.ts&&x.from===m.from);if(i<0)return no('That message is already gone.');
+      ghist[ch].splice(i,1);for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.del',ch,ts:m.ts,from:m.from});audit('delete message',m.from,'#'+ch);return ok({})}
+    case'admin.clear':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');ghist[ch].length=0;for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.clear',ch});audit('clear channel','#'+ch,'');return ok({})}
+    case'admin.announce':{const text=clean(m.text,200);if(!text)return no('Type a message first.');for(const x of conns.values())x.send({t:'notice',text:'Announcement: '+text});audit('announce','',text);return ok({})}
+    case'admin.reports':return ok({reports:db.reports.filter(r=>m.all||r.open).slice(-100).reverse()});
+    case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)?a0:null;
+      if(m.action==='mute'&&a){a.muted=Date.now()+60*60000;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted}
+      if(m.action==='ban'&&a){a.ban=Date.now()+24*3600e3;revokeTokens(a);kickAccount(a,'Your account has been suspended.')}
+      r.open=false;r.action=String(m.action||'dismiss');audit('report '+r.action,r.target,r.reason);touch();return ok({})}
+    case'admin.audit':return ok({log:db.audit.slice(-100).reverse()});
+  }
 }
 
 /* ---------- message router ---------- */
@@ -383,6 +472,7 @@ async function handle(c,m){
   if(t.startsWith('auth.'))return authMsg(c,m);
   if(t==='wallet.sync')return walletSync(c,m);
   if(t==='gift')return gift(c,m);
+  if(t.startsWith('admin.'))return adminMsg(c,m);
   if(t.startsWith('email.'))return emailMsg(c,m);
   if(t.startsWith('reset.'))return resetMsg(c,m);
   if(t==='report')return reportMsg(c,m);
@@ -470,10 +560,10 @@ const server=http.createServer((req,res)=>{
     if(p==='/admin/reports'){res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify(db.reports.filter(r=>u.searchParams.get('all')==='1'||r.open).slice(-100).reverse()))}
     if(p==='/admin/report'&&req.method==='POST'){
       const r=db.reports.find(x=>x.id===u.searchParams.get('id'));if(!r){res.writeHead(404);return res.end('none')}
-      const act=u.searchParams.get('action'),a=db.accounts[r.tk];
+      const act=u.searchParams.get('action'),a0=db.accounts[r.tk],a=a0&&a0.key!==OWNER_KEY?a0:null;
       if(act==='mute'&&a)a.muted=Date.now()+60*60000;if(act==='ban'&&a){a.ban=Date.now()+24*3600e3;revokeTokens(a);kickAccount(a,'Your account has been suspended.')}
       r.open=false;r.action=act;touch();res.writeHead(200);return res.end('ok')}
-    if(p==='/admin/ban'&&req.method==='POST'){const a=db.accounts[key(u.searchParams.get('name'))];if(!a){res.writeHead(404);return res.end('none')}
+    if(p==='/admin/ban'&&req.method==='POST'){const a=db.accounts[key(u.searchParams.get('name'))];if(!a||a.key===OWNER_KEY){res.writeHead(a?403:404);return res.end('no')}
       const h=+u.searchParams.get('hours')||0;a.ban=h>0?Date.now()+h*3600e3:0;if(h>0){revokeTokens(a);kickAccount(a,'Your account has been suspended.')}touch();res.writeHead(200);return res.end(h>0?'banned':'unbanned')}
     if(p==='/admin/outbox'&&mailMode==='log'){res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify(outbox))}
     if(p==='/admin/kick'&&req.method==='POST'){const c=conns.get(u.searchParams.get('id')||'');if(!c){res.writeHead(404);return res.end('none')}bans.set(c.ip,Date.now()+LIM.banMs);c.kill(1008,'removed');res.writeHead(200);return res.end('kicked')}
@@ -501,11 +591,12 @@ server.on('upgrade',(req,socket)=>{
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');
   socket.setNoDelay(true);
   const c=new Conn(socket,ip);conns.set(c.id,c);perIp.set(ip,(perIp.get(ip)||0)+1);
-  c.send({t:'welcome',id:c.id,ice:ICE,channels:GCH,limits:{giftMax:LIM.giftMax,giftDay:LIM.giftDay}});
+  if((METERED_KEY||CF_TOKEN)&&Date.now()-iceCache.at>12*3600e3)refreshIce();
+  c.send({t:'welcome',id:c.id,ice:iceCache.list,channels:GCH,limits:{giftMax:LIM.giftMax,giftDay:LIM.giftDay}});
 });
 setInterval(()=>{for(const c of conns.values()){if(!c.pong){c.kill(1001,'timeout');continue}c.pong=false;try{c.s.write(frame(9,Buffer.alloc(0)))}catch(e){}}},25000).unref();
 setInterval(()=>{const now=Date.now();for(const[ip,t]of bans)if(t<now)bans.delete(ip)},60000).unref();
 process.on('unhandledRejection',e=>console.error('unhandled:',e&&e.message));
-loadDb().then(()=>server.listen(PORT,()=>console.log('Excalibur server listening on '+PORT+' (storage: '+(useSB?'Supabase':DATA)+', email: '+mailMode+')')));
+loadDb().then(ensureOwner).then(()=>server.listen(PORT,()=>{console.log('Excalibur server listening on '+PORT+' (storage: '+(useSB?'Supabase':DATA)+', email: '+mailMode+')');refreshIce();setInterval(refreshIce,6*3600e3).unref()}));
 const stop=()=>{for(const c of conns.values())c.kill(1001,'restarting');dirty=true;Promise.race([flush(),new Promise(r=>setTimeout(r,2500))]).then(()=>process.exit(0))};
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
