@@ -59,9 +59,22 @@ const storage={mode:useSB?'supabase':'file',ok:null,at:0,err:''};
 let db={v:1,accounts:{},tokens:{},reports:[],audit:[]};
 const emailIndex=new Map();
 const indexEmails=()=>{emailIndex.clear();for(const k in db.accounts){const a=db.accounts[k];if(a.email&&a.emailVerified)emailIndex.set(a.email,k)}};
+function describeKey(){   /* says what kind of key this is without printing it */
+  const k=SB_KEY,urlRef=(SB_URL.match(/^https?:\/\/([^.\/]+)\./)||[])[1]||'?';
+  if(k.startsWith('sb_publishable_'))return 'KEY CHECK: this is a PUBLISHABLE key, which is the wrong one. Use the secret key (sb_secret_...).';
+  if(k.startsWith('sb_secret_'))return 'KEY CHECK: new-style secret key ('+k.length+' characters); URL project is '+urlRef+'. If it still fails, make sure this secret key was created in that same project.';
+  const parts=k.split('.');
+  if(parts.length===3){try{const j=JSON.parse(Buffer.from(parts[1].replace(/-/g,'+').replace(/_/g,'/'),'base64').toString());
+      let m='KEY CHECK: legacy key, role='+j.role+(j.ref?', project='+j.ref:'')+'; URL project is '+urlRef+'.';
+      if(j.role!=='service_role')m+=' WRONG ROLE: this must be the service_role key.';
+      if(j.ref&&urlRef!=='?'&&j.ref!==urlRef)m+=' WRONG PROJECT: the key belongs to a different project than SUPABASE_URL.';
+      return m}catch(e){}}
+  return 'KEY CHECK: this does not look like a Supabase key (expected sb_secret_... or a long key starting eyJ). It is '+k.length+' characters.';
+}
 function sbExplain(status,body,err){
   if(err){const code=String(err.cause&&err.cause.code||'');return/ENOTFOUND|EAI_AGAIN/.test(code)?'The SUPABASE_URL host could not be found. Check it for typos; it should look like https://abcdxyz.supabase.co':'Could not reach Supabase: '+(err.cause&&err.cause.message||err.message)}
-  if(status===401||status===403)return 'Supabase rejected the key (HTTP '+status+'). Use the service_role (or "secret") key from Project Settings > API, pasted with no spaces or quotes. Not the anon/publishable key.';
+  if((status===401||status===403)&&/42501|permission denied/i.test(body))return 'Supabase says "permission denied" for the kv table (HTTP '+status+'). The key is accepted but the table has not been opened to it: open Supabase > SQL Editor, paste the WHOLE supabase.sql file, run it, then restart. ('+String(body).slice(0,160)+')';
+  if(status===401||status===403)return 'Supabase rejected the key or the request (HTTP '+status+'). Supabase said: '+String(body).slice(0,300)+'  |  '+describeKey()+'  |  Checklist: the key must be the secret (sb_secret_...) or legacy service_role key, never publishable/anon; SUPABASE_URL and the key must be from the SAME project; run supabase.sql; and in Supabase Project Settings > Data API make sure the Data API is enabled.';
   if(status===404||/PGRST205|PGRST106|does not exist|schema cache/i.test(body))return 'The kv table was not found (HTTP '+status+'). Open Supabase > SQL Editor, run the contents of supabase.sql, then restart the server. Also check SUPABASE_URL is your Project URL.';
   return 'Supabase answered HTTP '+status+': '+String(body).slice(0,200);
 }
@@ -71,7 +84,7 @@ async function sbCall(method,pathq,body,extra){
 }
 async function loadDb(){
   if(useSB){
-    console.log('Supabase: connecting to '+SB_URL);
+    console.log('Supabase: connecting to '+SB_URL);console.log(describeKey());
     for(let i=0;;i++){
       const r=await sbCall('GET','/rest/v1/kv?key=eq.db&select=value');
       if(r.ok){let rows=[];try{rows=JSON.parse(r.text)}catch(e){}if(rows[0]&&rows[0].value)db=Object.assign(db,rows[0].value);storage.ok=true;storage.at=Date.now();
