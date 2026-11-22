@@ -26,17 +26,30 @@ let ICE=[{urls:'stun:stun.l.google.com:19302'}];try{if(process.env.ICE_SERVERS)I
 if(process.env.TURN_URL)ICE=ICE.concat([{urls:process.env.TURN_URL.split(',').map(x=>x.trim()).filter(Boolean),username:(process.env.TURN_USERNAME||'').trim(),credential:(process.env.TURN_CREDENTIAL||'').trim()}]);
 let iceCache={list:ICE,at:0,src:(process.env.TURN_URL||process.env.ICE_SERVERS)?'custom TURN/ICE servers':'STUN only (no TURN: strict networks will not connect)'};
 const METERED_DOMAIN=(process.env.METERED_DOMAIN||'').trim(),METERED_KEY=(process.env.METERED_API_KEY||'').trim(),CF_ID=(process.env.CF_TURN_KEY_ID||'').trim(),CF_TOKEN=(process.env.CF_TURN_API_TOKEN||'').trim();
+const mBase=(()=>{   /* accepts yourapp, yourapp.metered.live, or a pasted https://yourapp.metered.live/anything */
+  const d=METERED_DOMAIN.trim().replace(/^["']|["']$/g,'');if(!d)return'';const m=d.match(/^(https?:\/\/)?([^\/\s]+)/);if(!m)return'';
+  let host=m[2];if(!host.includes('.')&&!host.includes(':'))host+='.metered.live';return(m[1]||'https://')+host})();
+function netWhy(e,what){
+  const c=e&&e.cause,code=String(c&&c.code||'');
+  if(/ENOTFOUND|EAI_AGAIN/.test(code))return 'could not look up the address '+what+'. Check the setting: for Metered it must be just the domain from your Metered dashboard, like yourapp.metered.live (no https://, no path).';
+  if(/ECONNREFUSED|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|UND_ERR/.test(code))return 'could not connect to '+what+' ('+code+').';
+  return (e&&e.message||'error')+(c?' ('+(code||c.message)+')':'');
+}
 async function refreshIce(){
   try{
     if(METERED_DOMAIN&&METERED_KEY){
-      const r=await fetch((/^https?:\/\//.test(METERED_DOMAIN)?METERED_DOMAIN.replace(/\/+$/,''):'https://'+METERED_DOMAIN)+'/api/v1/turn/credentials?apiKey='+encodeURIComponent(METERED_KEY));if(!r.ok)throw new Error('Metered answered HTTP '+r.status);
-      const l=await r.json();if(!Array.isArray(l)||!l.length)throw new Error('Metered returned no servers');iceCache={list:l,at:Date.now(),src:'Metered TURN'};console.log('Voice: Metered TURN ready ('+l.length+' servers)');
+      if(!mBase)throw new Error('METERED_DOMAIN is empty or not understood');
+      let r;try{r=await fetch(mBase+'/api/v1/turn/credentials?apiKey='+encodeURIComponent(METERED_KEY))}catch(e){throw new Error(netWhy(e,mBase))}
+      if(r.status===401||r.status===403)throw new Error('Metered rejected the API key (HTTP '+r.status+') at '+mBase+'. Copy the key again from your Metered app dashboard.');
+      if(!r.ok)throw new Error('Metered answered HTTP '+r.status+' at '+mBase);
+      const l=await r.json();if(!Array.isArray(l)||!l.length)throw new Error('Metered returned no servers');iceCache={list:l,at:Date.now(),src:'Metered TURN'};console.log('Voice: Metered TURN ready ('+l.length+' servers from '+mBase+')');
     }else if(CF_ID&&CF_TOKEN){
-      const r=await fetch((process.env.CF_TURN_API_BASE||'https://rtc.live.cloudflare.com')+'/v1/turn/keys/'+encodeURIComponent(CF_ID)+'/credentials/generate',{method:'POST',headers:{Authorization:'Bearer '+CF_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})});
+      const cfBase=process.env.CF_TURN_API_BASE||'https://rtc.live.cloudflare.com';let r;
+      try{r=await fetch(cfBase+'/v1/turn/keys/'+encodeURIComponent(CF_ID)+'/credentials/generate',{method:'POST',headers:{Authorization:'Bearer '+CF_TOKEN,'Content-Type':'application/json'},body:JSON.stringify({ttl:86400})})}catch(e){throw new Error(netWhy(e,cfBase))}
       if(!r.ok)throw new Error('Cloudflare answered HTTP '+r.status);const j=await r.json();if(!j.iceServers)throw new Error('Cloudflare returned no servers');
       iceCache={list:[].concat(j.iceServers),at:Date.now(),src:'Cloudflare TURN'};console.log('Voice: Cloudflare TURN ready');
     }
-  }catch(e){console.error('Voice: could not get TURN servers:',e.message)}
+  }catch(e){console.error('Voice: could not get TURN servers: '+e.message)}
 }
 const GUID='258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},bedwars:{label:'Bedwars',max:16},parkour:{label:'Parkour',max:8}};
@@ -130,7 +143,7 @@ const key=n=>String(n||'').toLowerCase();
 const validName=n=>/^[A-Za-z0-9_]{3,16}$/.test(n)&&!RESERVED.has(n.toLowerCase());
 const cosList=a=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(x)))].slice(0,200):['s_blue','h_none','h_cap','t_none','k_none'];
 const eqObj=e=>{const o={skin:'s_blue',hat:'h_cap',trail:'t_none',kill:'k_none'};if(e&&typeof e==='object')for(const k in o)if(typeof e[k]==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(e[k]))o[k]=e[k];return o};
-const profile=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none'});
+const profile=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,staff:staffOf(c.acct),skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none'});
 const pub=r=>({id:r.id,kind:r.kind,name:r.name,max:r.max,priv:false,count:r.members.size});
 const open=r=>!r.priv&&!r.locked&&r.members.size<r.max;
 const clientIp=req=>{const f=TRUST&&req.headers['x-forwarded-for'];return f?String(f).split(',')[0].trim():req.socket.remoteAddress};
@@ -143,7 +156,7 @@ const maskEmail=e=>{if(!e)return'';const[u,d]=e.split('@');return u[0]+'***@'+d}
 const mkCode=()=>String(crypto.randomInt(0,1000000)).padStart(6,'0');
 const hCode=(c,salt)=>sha(c+':'+salt);
 const timingEq=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b)};
-const userView=a=>({name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&!!OWNER_PW,email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
+const userView=a=>({name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
 const revokeTokens=a=>{for(const h in db.tokens)if(db.tokens[h].k===a.key)delete db.tokens[h]};
 const kickAccount=(a,reason)=>{const oc=online.get(a.key);if(oc){oc.send({t:'kicked',reason});oc.kill(1000,'signed out')}};
 function ledger(a,text){a.ledger.push({t:Date.now(),text});if(a.ledger.length>50)a.ledger.shift()}
@@ -340,7 +353,7 @@ function globalMsg(c,m){
     const now=Date.now();c.ctok=Math.min(LIM.chatBurst,c.ctok+(now-c.clast)/1000*LIM.chatPerSec);c.clast=now;
     if(c.ctok<1)return c.send({t:'notice',text:'You are chatting too fast.'});
     const text=sChat(m.text);if(!text)return;c.ctok--;
-    const msg={from:a.name,text,ts:now};ghist[ch].push(msg);if(ghist[ch].length>50)ghist[ch].shift();
+    const msg={from:a.name,text,ts:now,staff:staffOf(a)};ghist[ch].push(msg);if(ghist[ch].length>50)ghist[ch].shift();
     for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.msg',ch,...msg});
   }
 }
@@ -439,42 +452,50 @@ async function ensureOwner(){
   a.salt=salt.toString('hex');a.hash=hash.toString('hex');a.envSig=sig;a.fails=0;a.lock=0;a.ban=0;a.muted=0;revokeTokens(a);touch();
   console.log('Admin panel: on (account "'+a.name+'" now uses OWNER_PASSWORD)');
 }
-const isOwner=c=>!!(OWNER_PW.length>=12&&c.acct&&c.acct.key===OWNER_KEY);
-function audit(action,target,detail){db.audit.push({t:Date.now(),a:action,x:String(target||''),d:String(detail||'')});if(db.audit.length>300)db.audit.splice(0,db.audit.length-300);touch()}
+function staffOf(a){return a?((a.key===OWNER_KEY&&OWNER_PW.length>=12)?'owner':(a.admin?'admin':'')):''}
+const staffLevel=c=>!c.acct?0:staffOf(c.acct)==='owner'?2:(c.acct.admin?1:0);   /* 2 = owner, 1 = admin (moderation only) */
+let curActor='';
+function audit(action,target,detail){db.audit.push({t:Date.now(),a:action,x:String(target||''),d:String(detail||''),by:curActor});if(db.audit.length>300)db.audit.splice(0,db.audit.length-300);touch()}
 const pushTo=(a,o)=>{const c=online.get(a.key);if(c)c.send(o)};
 function adminMsg(c,m){
-  if(!isOwner(c))return;   /* anyone else is ignored without an answer */
+  const lvl=staffLevel(c);if(!lvl)return;   /* anyone who is not staff is ignored without an answer */
+  curActor=c.acct.name;
   const ok=x=>c.send({t:'admin.res',req:m.req,ok:true,...x}),no=e=>c.send({t:'admin.res',req:m.req,ok:false,err:e});
   const acct=()=>db.accounts[key(m.name)]||null,notOwner=a=>a.key!==OWNER_KEY;
+  const ownerOnly=()=>{if(lvl<2){no('Only the owner can do that.');return true}return false};
+  const guard=a=>{if(a.key===OWNER_KEY){no('The owner account cannot be moderated.');return true}if(lvl<2&&a.admin){no('Admins cannot moderate other admins.');return true}return false};
   switch(m.t){
     case'admin.state':return ok({s:{connections:conns.size,accounts:Object.keys(db.accounts).length,rooms:rooms.size,openReports:db.reports.filter(r=>r.open).length,mail:mailMode,turn:iceCache.src,
       storage:{mode:storage.mode,ok:storage.ok,at:storage.at,err:storage.err},
-      players:[...conns.values()].map(x=>({id:x.id,name:x.p?x.p.name:(x.acct?x.acct.name:'(browsing)'),acct:x.acct?x.acct.name:'',room:x.room&&rooms.get(x.room)?rooms.get(x.room).name:'',ip:x.ip})).slice(0,200)}});
+      lvl,staff:Object.values(db.accounts).filter(a=>a.admin).map(a=>a.name),
+      players:[...conns.values()].map(x=>({id:x.id,name:x.p?x.p.name:(x.acct?x.acct.name:'(browsing)'),acct:x.acct?x.acct.name:'',staff:staffOf(x.acct),room:x.room&&rooms.get(x.room)?rooms.get(x.room).name:'',ip:lvl>=2?x.ip:''})).slice(0,200)}});
     case'admin.lookup':{const a=acct();if(!a)return no('No account with that name.');const now=Date.now();
-      return ok({u:{name:a.name,coins:a.coins,xp:a.xp,created:a.created,online:!!online.get(a.key),email:a.email?maskEmail(a.email):'',verified:!!a.emailVerified,ban:a.ban>now?a.ban:0,muted:a.muted>now?a.muted:0,friends:Object.keys(a.friends||{}).length,owned:(a.owned||[]).length,ledger:(a.ledger||[]).slice(-5),owner:!notOwner(a)}})}
-    case'admin.coins':{const a=acct();if(!a)return no('No account with that name.');const amt=Math.floor(+m.amount);
+      return ok({u:{name:a.name,coins:a.coins,xp:a.xp,created:a.created,online:!!online.get(a.key),email:lvl>=2&&a.email?maskEmail(a.email):'',admin:!!a.admin,verified:!!a.emailVerified,ban:a.ban>now?a.ban:0,muted:a.muted>now?a.muted:0,friends:Object.keys(a.friends||{}).length,owned:(a.owned||[]).length,ledger:(a.ledger||[]).slice(-5),owner:!notOwner(a)}})}
+    case'admin.coins':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');const amt=Math.floor(+m.amount);
       if(!Number.isFinite(amt)||Math.abs(amt)>1e9)return no('Use a whole number up to 1,000,000,000.');
       const n=m.mode==='set'?amt:a.coins+amt;a.coins=Math.max(0,Math.min(1e9,n));a.lastSync=Date.now();
       ledger(a,m.mode==='set'?'The owner set your balance to '+a.coins:'The owner '+(amt>=0?'added ':'removed ')+Math.abs(amt)+' coins');audit('coins',a.name,(m.mode==='set'?'set to ':'add ')+amt);touch();
       pushTo(a,{t:'acct.push',coins:a.coins});return ok({coins:a.coins})}
-    case'admin.unlockall':{const a=acct();if(!a)return no('No account with that name.');a.owned=cosList([...(a.owned||[]),...(Array.isArray(m.ids)?m.ids:[])]);audit('unlock cosmetics',a.name,a.owned.length+' items');touch();pushTo(a,{t:'acct.push',owned:a.owned});return ok({owned:a.owned.length})}
-    case'admin.ban':{const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('You cannot ban the owner account.');
+    case'admin.unlockall':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');a.owned=cosList([...(a.owned||[]),...(Array.isArray(m.ids)?m.ids:[])]);audit('unlock cosmetics',a.name,a.owned.length+' items');touch();pushTo(a,{t:'acct.push',owned:a.owned});return ok({owned:a.owned.length})}
+    case'admin.ban':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
       const h=+m.hours;if(!(h>=0)||h>87600)return no('Hours must be between 0 (lifts a ban) and 87600.');
       a.ban=h>0?Date.now()+h*3600e3:0;if(h>0){revokeTokens(a);kickAccount(a,'Your account has been suspended.')}audit(h>0?'ban':'unban',a.name,h>0?h+'h '+clean(m.reason,80):'');touch();return ok({})}
-    case'admin.mute':{const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('You cannot mute the owner account.');
+    case'admin.mute':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
       const mi=+m.minutes;if(!(mi>=0)||mi>525600)return no('Minutes must be between 0 (unmute) and 525600.');
       a.muted=mi>0?Date.now()+mi*60000:0;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted;audit(mi>0?'mute':'unmute',a.name,mi>0?mi+' min':'');touch();return ok({})}
-    case'admin.kick':{const t=conns.get(String(m.id||''));if(!t)return no('That player already left.');if(t.acct&&t.acct.key===OWNER_KEY)return no('You cannot kick yourself.');
+    case'admin.kick':{const t=conns.get(String(m.id||''));if(!t)return no('That player already left.');if(t.acct&&(t.acct.key===OWNER_KEY||(lvl<2&&t.acct.admin)))return no(t.acct.key===OWNER_KEY?'The owner cannot be kicked.':'Admins cannot kick other admins.');
       if(m.ban)bans.set(t.ip,Date.now()+LIM.banMs);audit('kick',t.p?t.p.name:t.id,m.ban?'address blocked 10 min':'');t.kill(1008,'removed');return ok({})}
     case'admin.delmsg':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');const i=ghist[ch].findIndex(x=>x.ts===m.ts&&x.from===m.from);if(i<0)return no('That message is already gone.');
       ghist[ch].splice(i,1);for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.del',ch,ts:m.ts,from:m.from});audit('delete message',m.from,'#'+ch);return ok({})}
     case'admin.clear':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');ghist[ch].length=0;for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.clear',ch});audit('clear channel','#'+ch,'');return ok({})}
-    case'admin.announce':{const text=clean(m.text,200);if(!text)return no('Type a message first.');for(const x of conns.values())x.send({t:'notice',text:'Announcement: '+text});audit('announce','',text);return ok({})}
+    case'admin.announce':{if(ownerOnly())return;const text=clean(m.text,200);if(!text)return no('Type a message first.');for(const x of conns.values())x.send({t:'notice',text:'Announcement: '+text});audit('announce','',text);return ok({})}
     case'admin.reports':return ok({reports:db.reports.filter(r=>m.all||r.open).slice(-100).reverse()});
-    case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)?a0:null;
+    case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)&&!(lvl<2&&a0.admin)?a0:null;
       if(m.action==='mute'&&a){a.muted=Date.now()+60*60000;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted}
       if(m.action==='ban'&&a){a.ban=Date.now()+24*3600e3;revokeTokens(a);kickAccount(a,'Your account has been suspended.')}
       r.open=false;r.action=String(m.action||'dismiss');audit('report '+r.action,r.target,r.reason);touch();return ok({})}
+    case'admin.setadmin':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('The owner is already the owner.');
+      a.admin=!!m.on;audit(a.admin?'make admin':'remove admin',a.name,'');touch();pushTo(a,{t:'user.update',user:userView(a)});return ok({admin:a.admin})}
     case'admin.audit':return ok({log:db.audit.slice(-100).reverse()});
   }
 }

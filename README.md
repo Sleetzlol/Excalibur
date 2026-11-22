@@ -48,6 +48,13 @@ Only that account sees it, nobody else can register the name `Owner`, and reques
 The owner account cannot be banned, muted or kicked. If you change `OWNER_PASSWORD`, the owner's password changes at the next restart. If an account called Owner already existed
 (someone registered it before this feature), it is taken over: its password is reset and its email removed. There is no two-factor sign-in, so use a long password; five wrong guesses lock the account for five minutes.
 
+### Admins and rainbow nametags
+The owner can make anyone an admin: Admin tab > Players > look the person up > **Make admin** (and **Remove admin** to undo it; it takes effect live, no reload).
+- The owner and every admin get an **animated rainbow nametag** in the lobby and casino, in the People list, in global chat and in the sidebar (the owner has a 👑, admins a ⭐).
+- Admins get a limited Admin tab: they can see who is online, look up players, **mute, ban and kick** normal players, **delete or clear chat messages**, and handle reports.
+- Admins **cannot** give coins, unlock cosmetics, send announcements or make other admins, cannot see IP addresses or emails, and cannot moderate the owner or other admins. Only the owner can ban an admin.
+- The audit log records who did what.
+
 ## Saving accounts (Supabase)
 Render's free plan wipes its disk on every restart, which would delete every account. Supabase's free plan fixes that.
 1. Create a free project at supabase.com.
@@ -102,7 +109,8 @@ By default only Google's free **STUN** server is used, which works on many home 
 Easiest free option, Metered:
 1. Make a free account at metered.ca and create an app.
 2. Copy the app's domain (like `yourapp.metered.live`) and its API key from the dashboard.
-3. On Render set `METERED_DOMAIN` and `METERED_API_KEY`.
+3. On Render set `METERED_DOMAIN` and `METERED_API_KEY`. `METERED_DOMAIN` is just your app's domain, like `yourapp.metered.live`. (A bare `yourapp` or a pasted `https://yourapp.metered.live/dashboard` also works.)
+   If the log says `could not look up the address`, the domain is misspelled; `Metered rejected the API key` means the key is wrong.
 4. Admin > Overview should now say `Voice: Metered TURN`. If it says `STUN only`, check the Logs for `Voice: could not get TURN servers`.
 
 Cloudflare's TURN service (`CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`) and your own server (`TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL`) work too.

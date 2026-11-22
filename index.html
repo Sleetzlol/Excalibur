@@ -322,6 +322,20 @@ body.dragging{user-select:none}body.dragging iframe{pointer-events:none}
 .fdot{width:10px;height:10px;border-radius:50%;background:#59627d;flex:none}.fdot.on{background:#4be37a;box-shadow:0 0 8px #4be37a}
 .chtabs{flex-wrap:wrap}.chtabs .btn{padding:6px 14px;font-size:13px}
 [data-v][hidden]{display:none!important}
+
+/* games are full-screen pages now, not windows */
+.win.page{inset:0;left:0!important;top:0!important;width:100%!important;height:100%!important;border:0;border-radius:0;background:#050a24;backdrop-filter:none;animation:none;z-index:300;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.win.page .wbar{cursor:default;touch-action:auto;min-height:46px;padding:5px 10px}
+.win.page .wbar .door{width:auto;height:36px;padding:0 14px;font:700 14px var(--head);background:rgba(255,255,255,.12);border-radius:10px;white-space:nowrap}
+.win.page .wbar .door:hover,.win.page .wbar .door:active{background:#e0484d}
+.win.page .wbody{padding:6px}
+body.in-game{overflow:hidden}
+.taskbar{display:none!important}
+.toast{z-index:9600}
+
+.rb{background:linear-gradient(90deg,#ff5f6d,#ffc371,#fff56d,#7dff9a,#6de6ff,#8f7dff,#ff7de0,#ff5f6d);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent;animation:rbmove 3s linear infinite;font-weight:800}
+@keyframes rbmove{to{background-position:300% 0}}
 </style>
 </head>
 <body>
@@ -377,7 +391,7 @@ const store={
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
 let coins=store.get('coins',100);
-const ACCHOOK={dirty(){}};let signedIn=false,signedOwner=false;
+const ACCHOOK={dirty(){}};let signedIn=false,signedOwner=false,signedStaff='';
 let user=store.get('user','Guest'+Math.floor(1000+Math.random()*9000));
 const $=s=>document.querySelector(s);
 const el=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!==undefined)e.innerHTML=h;return e};
@@ -398,7 +412,7 @@ function float(txt,x,y,color){const e=el('div','float',txt);e.style.left=x+'px';
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function dailyState(){const last=store.get('daily',0),ready=Date.now()-last>864e5;const b=$('#daily');b.disabled=!ready;b.textContent=ready?'Daily +50':'Claimed'}
 $('#daily').onclick=()=>{store.set('daily',Date.now());setCoins(coins+50);toast('+50 coins')};
-function setUser(){const na=$('#navadmin');if(na)na.hidden=!signedOwner;$('#uname').textContent=(signedIn?'✓ ':'')+user;$('#ucap').textContent=signedIn?'Signed in to your account':'Guest. Click your name to change it'}
+function setUser(){const na=$('#navadmin');if(na)na.hidden=!signedOwner;const un=$('#uname');un.classList.toggle('rb',!!signedStaff);un.textContent=(signedStaff==='owner'?'👑 ':signedStaff==='admin'?'⭐ ':'')+(signedIn?'✓ ':'')+user;$('#ucap').textContent=signedIn?'Signed in to your account':'Guest. Click your name to change it'}
 $('#uname').onclick=()=>{if(signedIn){toast('Your name comes from your account');return}const n=(prompt('Pick a username (max 16 characters)',user)||'').trim().slice(0,16);if(n){user=n;store.set('user',n);setUser()}};
 
 /* ---------- Music and sound effects (all synthesized in the browser, no files) ---------- */
@@ -508,7 +522,7 @@ function lobbyRoom(g,box,win,cfg,start){
     clock.textContent='Go!';AUD.sfx('go');fill()};
   iv=setInterval(()=>{if(win.el.classList.contains('min'))return;left-=.1;const s=Math.max(0,Math.ceil(left));if(clock.textContent!==String(s)&&left>0){clock.textContent=String(s);if(s<=5)AUD.sfx('tick')}
     bar.firstChild.style.width=Math.max(0,left/secs*100)+'%';if(left<=0)begin()},100);
-  go.onclick=begin;lv.onclick=()=>closeWin(win);
+  go.onclick=begin;lv.onclick=()=>exitGame(win);
   return()=>{clearInterval(iv);clearTimeout(tm);if(inner)inner()};
 }
 
@@ -659,25 +673,20 @@ function mpRoom(g,box,win,kind,onStart,solo){
       s=res.session;wire();if(s.isMaster())run();draw();
     });
   }
-  go.onclick=start;lv.onclick=()=>closeWin(win);
+  go.onclick=start;lv.onclick=()=>exitGame(win);
   bots.onclick=()=>{dead=true;clearInterval(tm);if(s)s.leave();s=null;inner=solo()};
   draw();NET.ready.then(()=>{if(dead)return;if(!NET.online()){dead=true;inner=solo();return}find()});
   return()=>{dead=true;clearInterval(tm);if(inner)inner();else if(s)s.leave()};
 }
 function openGame(g){
-  const ex=WM.wins.find(w=>w.g.id===g.id);
-  if(ex){ex.el.classList.remove('min');focusWin(ex);return toast(g.name+' is already open')}
-  const id='w'+(++WM.n),off=(WM.wins.length%6)*28;
-  const w={id,g,zoom:1,el:el('div','win'),track:({casino:'cas',chess:'chess'})[g.builtin]||'hub'};
-  const W=Math.min(innerWidth-20,g.builtin==='flip'?600:1000),H=Math.min(innerHeight-90,g.builtin==='flip'?560:720);
-  Object.assign(w.el.style,{width:W+'px',height:H+'px',left:Math.max(10,(innerWidth-W)/2-60+off)+'px',top:Math.max(10,(innerHeight-H)/2-40+off)+'px'});
-  w.el.innerHTML=`<div class="wbar"><span class="wico"></span><span class="wtitle"></span><span class="wzoom">100%</span>
-    <button data-a="zo" title="Zoom out">−</button><button data-a="zi" title="Zoom in">+</button>
-    <button data-a="min" title="Minimize">▁</button><button data-a="fs" title="Fullscreen">⛶</button><button data-a="x" class="wx" title="Close">✕</button></div>
-    <div class="wbody"><div class="wzoomer"></div></div><div class="wgrip"></div>`;
+  [...WM.wins].forEach(closeWin);   /* one game at a time: each game is its own full-screen page */
+  const id='w'+(++WM.n);
+  const w={id,g,zoom:1,el:el('div','win page'),track:({casino:'cas',chess:'chess'})[g.builtin]||'hub'};
+  w.el.innerHTML=`<div class="wbar"><button class="door" data-a="x" title="Leave the game and go back to the title screen">🚪 Exit</button><span class="wico"></span><span class="wtitle"></span></div>
+    <div class="wbody"><div class="wzoomer"></div></div>`;
   w.el.querySelector('.wico').textContent=g.ico||'';w.el.querySelector('.wtitle').textContent=g.name;
   const box=w.el.querySelector('.wzoomer');
-  w.el.classList.add('max');
+  document.body.classList.add('in-game');
   document.body.append(w.el);WM.wins.push(w);focusWin(w);
   if(g.src){const f=el('iframe');f.src=g.src;f.title=g.name;f.allow='fullscreen';f.className='wframe';box.append(f)}
   else if(g.builtin==='flip')flipGame(box);
@@ -692,24 +701,15 @@ function openGame(g){
   else if(g.builtin==='casino')w.stop=casinoGame(box,w);
   else if(g.builtin==='chess')w.stop=chessGame(box,w);
   w.timer=setInterval(()=>{if(!document.hidden&&!w.el.classList.contains('min')){setCoins(coins+2);toast('+2 coins for playing '+g.name)}},30000);
-  const setZoom=z=>{w.zoom=Math.max(.5,Math.min(1.5,Math.round(z*10)/10));box.style.zoom=w.zoom;w.el.querySelector('.wzoom').textContent=Math.round(w.zoom*100)+'%'};
-  w.el.addEventListener('pointerdown',()=>focusWin(w),true);
-  w.el.querySelector('.wbar').addEventListener('click',e=>{const a=e.target.dataset&&e.target.dataset.a;if(!a)return;
-    if(a==='zo')setZoom(w.zoom-.1);if(a==='zi')setZoom(w.zoom+.1);
-    if(a==='min'){w.el.classList.add('min');drawTasks()}
-    if(a==='fs'){if(document.fullscreenElement===w.el)document.exitFullscreen();else if(w.el.requestFullscreen)w.el.requestFullscreen().catch(()=>w.el.classList.toggle('max'));else w.el.classList.toggle('max')}
-    if(a==='x')closeWin(w)});
-  w.el.querySelector('.wbar').ondblclick=e=>{if(!e.target.dataset.a)w.el.classList.toggle('max')};
-  drag(w.el.querySelector('.wbar'),(dx,dy,s)=>{if(w.el.classList.contains('max'))return;w.el.style.left=Math.min(innerWidth-80,Math.max(-W+120,s.l+dx))+'px';w.el.style.top=Math.min(innerHeight-60,Math.max(0,s.t+dy))+'px'},()=>({l:w.el.offsetLeft,t:w.el.offsetTop}));
-  drag(w.el.querySelector('.wgrip'),(dx,dy,s)=>{w.el.style.width=Math.max(320,s.w+dx)+'px';w.el.style.height=Math.max(240,s.h+dy)+'px'},()=>({w:w.el.offsetWidth,h:w.el.offsetHeight}));
-  drawTasks();
+  w.el.querySelector('.door').onclick=()=>exitGame(w);
 }
+function exitGame(w){closeWin(w);showTitle()}   /* the door: leave the game and go back to the title screen */
 function drag(h,move,start){h.addEventListener('pointerdown',e=>{if(e.target.dataset.a)return;e.preventDefault();const x0=e.clientX,y0=e.clientY,s=start();
   const mv=ev=>move(ev.clientX-x0,ev.clientY-y0,s),up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);document.body.classList.remove('dragging')};
   document.body.classList.add('dragging');addEventListener('pointermove',mv);addEventListener('pointerup',up)})}
-function focusWin(w){AUD.music(w.track||'hub');WM.active=w.id;w.el.style.zIndex=++WM.z;WM.wins.forEach(o=>o.el.classList.toggle('focus',o===w));drawTasks()}
+function focusWin(w){AUD.music(w.track||'hub');WM.active=w.id;WM.wins.forEach(o=>o.el.classList.toggle('focus',o===w));drawTasks()}
 function closeWin(w){if(w.stop)w.stop();clearInterval(w.timer);if(document.fullscreenElement===w.el)document.exitFullscreen();w.el.remove();WM.wins=WM.wins.filter(o=>o!==w);
-  if(WM.active===w.id){const t=WM.wins.filter(o=>!o.el.classList.contains('min')).pop();WM.active=null;if(t)focusWin(t)}if(!WM.wins.length)AUD.music('hub');drawTasks()}
+  if(WM.active===w.id){const t=WM.wins.filter(o=>!o.el.classList.contains('min')).pop();WM.active=null;if(t)focusWin(t)}if(!WM.wins.length){AUD.music('hub');document.body.classList.remove('in-game')}drawTasks()}
 function drawTasks(){const tb=$('#taskbar');tb.innerHTML='';tb.classList.toggle('show',WM.wins.length>0);
   WM.wins.forEach(w=>{const b=el('button','task'+(w.id===WM.active&&!w.el.classList.contains('min')?' on':'')+(w.el.classList.contains('min')?' mini':''));
     b.textContent=(w.g.ico?w.g.ico+' ':'')+w.g.name;
@@ -2204,7 +2204,7 @@ function casinoGame(box,win){
     const nr=near();if(nr){cx.strokeStyle='rgba(255,226,138,'+(.5+.4*pulse)+')';cx.lineWidth=4;cx.setLineDash([10,8]);rr(cx,nr.x-nr.w/2-10,nr.y-nr.h/2-10,nr.w+20,nr.h+20,16);cx.stroke();cx.setLineDash([])}
     if(sess)NETUI.people(cx,sess,P.t,12,-62);
     drawAvatar(cx,P.x,P.y+12,{skin:cosOf(eq.skin).c,rainbow:isRainbow(eq.skin),hat:eq.hat,dir:P.dir,moving:P.moving,walk:P.walk,t:P.t,s:1});
-    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const w=cx.measureText((signedIn?'✓ ':'')+user).width+20;rr(cx,P.x-w/2,P.y-62,w,20,10);cx.fillStyle='rgba(2,6,24,.78)';cx.fill();cx.strokeStyle='#f2b84b';cx.lineWidth=1.5;cx.stroke();cx.fillStyle='#fff';cx.fillText((signedIn?'✓ ':'')+user,P.x,P.y-47);if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,P.y-68,sess.me.bubble);
+    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const SL=selfLabel(),w=cx.measureText(SL).width+20;rr(cx,P.x-w/2,P.y-62,w,20,10);cx.fillStyle='rgba(2,6,24,.78)';cx.fill();cx.strokeStyle='#f2b84b';cx.lineWidth=1.5;cx.stroke();if(signedStaff)rbText(cx,SL,P.x,P.y-47);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,P.y-47)}if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,P.y-68,sess.me.bubble);
     cx.restore();
     const vg=cx.createRadialGradient(VW/2,VH/2,VH*.4,VW/2,VH/2,VW*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.45)');cx.fillStyle=vg;cx.fillRect(0,0,VW,VH);
     cx.textAlign='center';
@@ -2417,6 +2417,15 @@ function chessGame(box,win){
   return()=>{clearTimeout(tm);ro.disconnect()};
 }
 
+/* rainbow nametag for the owner and admins (canvas text, animated) */
+function rbText(cx,txt,x,y){
+  const t=performance.now()/1000,al=cx.textAlign;cx.textAlign='left';let px=x-cx.measureText(txt).width/2;
+  for(const ch of txt){cx.fillStyle='hsl('+(((t*140+px*5)%360)|0)+',100%,68%)';cx.fillText(ch,px,y);px+=cx.measureText(ch).width}
+  cx.textAlign=al;
+}
+const staffMark=st=>st==='owner'?'👑 ':st==='admin'?'⭐ ':'';
+const selfLabel=()=>staffMark(signedStaff)+(signedIn?'✓ ':'')+user;
+
 /* ---------- Rooms and networking ----------
    Online: the page opens a WebSocket to its own server (wss://this-host/ws), or to a server you set with
    window.EXCALIBUR_SERVER, ?server=wss://... in the address bar, or localStorage 'serverUrl'.
@@ -2569,11 +2578,12 @@ const NETUI={
     rrp(cx,x-w/2,y-26,w,24,12);cx.fillStyle='rgba(255,255,255,.95)';cx.fill();cx.beginPath();cx.moveTo(x-5,y-3);cx.lineTo(x+5,y-3);cx.lineTo(x,y+4);cx.fill();cx.fillStyle='#16182a';cx.fillText(t,x,y-10);
   },
   tag(cx,q,x,y){
-    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const w=cx.measureText((q.acct?'✓ ':'')+q.name).width+(q.bot?36:20);
+    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const lab=staffMark(q.staff)+(q.acct?'✓ ':'')+q.name,w=cx.measureText(lab).width+(q.bot?36:20);
     rrp(cx,x-w/2,y,w,20,10);cx.fillStyle='rgba(10,16,44,.78)';cx.fill();
+    if(q.staff){cx.lineWidth=2;cx.strokeStyle='hsl('+(((performance.now()/8)%360)|0)+',100%,65%)';rrp(cx,x-w/2,y,w,20,10);cx.stroke()}
     if(q.speaking){cx.strokeStyle='#4be37a';cx.lineWidth=2.5;rrp(cx,x-w/2,y,w,20,10);cx.stroke()}
     if(q.bot){cx.fillStyle='#2f6fb5';rrp(cx,x-w/2+3,y+3,26,14,7);cx.fill();cx.fillStyle='#fff';cx.font='800 9px DM Sans,sans-serif';cx.fillText('BOT',x-w/2+16,y+13);cx.font='700 13px DM Sans,sans-serif'}
-    cx.fillStyle=q.bot?'#7fc4ff':'#fff';cx.fillText((q.acct?'✓ ':'')+q.name,x+(q.bot?14:0),y+14);
+    if(q.staff)rbText(cx,lab,x,y+14);else{cx.fillStyle=q.bot?'#7fc4ff':'#fff';cx.fillText(lab,x+(q.bot?14:0),y+14)}
     if(q.bt>0&&q.bubble)NETUI.bubble(cx,x,y-6,q.bubble);
   },
   people(cx,s,t,oy,tagDy){
@@ -2604,7 +2614,7 @@ const NETUI={
       const s=ctl.s,close=el('button','btn alt','Close');close.onclick=()=>{pp.hidden=true};
       if(!s||!s.players.size)lst.append(el('p','note','Nobody else is here yet.'));
       else for(const q of s.players.values()){
-        const d=el('div','rrow'),nm=el('span');nm.textContent=(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)')+(VOICE.has(q.id)?'   🎙 '+VOICE.stateOf(q.id):'');d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
+        const d=el('div','rrow'),nm=el('span');nm.textContent=staffMark(q.staff)+(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)')+(VOICE.has(q.id)?'   🎙 '+VOICE.stateOf(q.id):'');if(q.staff)nm.classList.add('rb');d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
         if(q.acct&&ACC.name){
           if(!ACC.friends.some(f=>f.name===q.name)){const af=el('button','btn alt','Add friend');af.onclick=async()=>{const r=await ACC.friend('add',q.name);toast(r.ok?'Friend request sent':r.err);af.remove()};bs.append(af)}
           const gf=el('button','btn gold','Gift');gf.onclick=()=>giftDialog(q.name);bs.append(gf);
@@ -2912,8 +2922,8 @@ function lobbyGame(box,win){
   function player(){
     if(sess)NETUI.people(cx,sess,P.t,0,-78);
     drawAvatar(cx,P.x,P.y,{skin:cosOf(eq.skin).c,rainbow:isRainbow(eq.skin),hat:eq.hat,dir:P.dir,walk:P.walk,moving:P.moving,t:P.t});
-    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const w=cx.measureText((signedIn?'✓ ':'')+user).width+20,ty=P.y-78;
-    pill(P.x-w/2,ty,w,20);cx.fillStyle='rgba(10,16,44,.75)';cx.fill();cx.fillStyle='#fff';cx.fillText((signedIn?'✓ ':'')+user,P.x,ty+14);
+    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const SL=selfLabel(),w=cx.measureText(SL).width+20,ty=P.y-78;
+    pill(P.x-w/2,ty,w,20);cx.fillStyle='rgba(10,16,44,.75)';cx.fill();if(signedStaff)rbText(cx,SL,P.x,ty+14);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,ty+14)}
     if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,ty-6,sess.me.bubble);
   }
   function draw(){
@@ -3034,13 +3044,13 @@ const ACC=(()=>{
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
   function applyWallet(u){quiet(u.coins);xp=u.xp;store.set('xp',xp);drawLv();owned=u.owned.slice();eq={...eq,...u.eq};store.set('owned',owned);store.set('eq',eq)}
-  const signed=(v)=>{signedIn=v;if(!v){signedOwner=false;A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
+  const signed=(v)=>{signedIn=v;if(!v){signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
   A.onClose=()=>fire('conn');
   A.msg=m=>{switch(m.t){
     case'auth.ok':A.name=m.user.name;A.info=m.user;A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
-      applyWallet(m.user);user=A.name;signedIn=true;signedOwner=!!m.user.owner;setUser();done(m,{ok:true});fire('auth');fire('friends');break;
+      applyWallet(m.user);user=A.name;signedIn=true;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();done(m,{ok:true});fire('auth');fire('friends');break;
     case'auth.err':if(!reqs.has(m.req)){A.token='';store.set('token','')}done(m,{ok:false,err:m.err});break;
     case'auth.out':signed(false);break;
     case'kicked':toast(m.reason);signed(false);break;
@@ -3048,11 +3058,11 @@ const ACC=(()=>{
     case'friend.res':if(!NET.fail(m.req,m.err))done(m,m);break;
     case'gift.res':case'email.res':case'reset.res':case'report.res':case'admin.res':done(m,m);break;
     case'acct.push':if(m.coins!=null)quiet(m.coins);if(m.owned){owned=m.owned.slice();store.set('owned',owned)}toast('The owner updated your account');fire('wallet');break;
-    case'user.update':A.info=m.user;signedOwner=!!m.user.owner;setUser();fire('auth');break;
+    case'user.update':A.info=m.user;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();fire('auth');break;
     case'gift.in':quiet(coins+m.amount);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
     case'wallet.set':quiet(m.coins);toast('The server corrected your balance.');break;
     case'g.history':chan(m.ch).msgs=m.msgs.slice();fire('chat');break;
-    case'g.msg':{const c=chan(m.ch);c.msgs.push({from:m.from,text:m.text,ts:m.ts});if(c.msgs.length>100)c.msgs.shift();fire('chat');break}
+    case'g.msg':{const c=chan(m.ch);c.msgs.push({from:m.from,text:m.text,ts:m.ts,staff:m.staff||''});if(c.msgs.length>100)c.msgs.shift();fire('chat');break}
     case'g.count':chan(m.ch).n=m.n;fire('chat');break;
     case'g.del':{const c=chan(m.ch);c.msgs=c.msgs.filter(x=>!(x.ts===m.ts&&x.from===m.from));fire('chat');break}
     case'g.clear':chan(m.ch).msgs=[];fire('chat');break;
@@ -3252,8 +3262,9 @@ function renderAccount(v){
 }
 function renderAdmin(v){
   v.append(el('h1','','Admin'));
-  if(!(ACC.info&&ACC.info.owner)){v.append(el('p','sub','This page is only for the server owner.'));return}
-  v.append(el('p','sub','Every action here is saved in the audit log.'));
+  if(!(ACC.info&&(ACC.info.owner||ACC.info.admin))){v.append(el('p','sub','This page is only for the server owner and admins.'));return}
+  const OWN=!!ACC.info.owner;
+  v.append(el('p','sub',OWN?'You are the owner. Every action here is saved in the audit log.':'You are an admin: you can moderate chat, mute, ban, kick and handle reports. Coins, announcements and making admins are owner-only. Every action is saved in the audit log.'));
   let tab='over',timer=0,off=null,who='',chCur='general';
   const tabs=el('div','row chtabs'),body=el('div');tabs.style.marginTop='0';v.append(tabs,body);
   const call=async(a,o)=>{const r=await ACC.req({t:'admin.'+a,...(o||{})});if(!r.ok)toast(r.err||'That did not work');return r};
@@ -3274,18 +3285,19 @@ function renderAdmin(v){
     row.append(nm,am,btn('Add','gold',()=>doCoins('add')),btn('Set to','alt',()=>doCoins('set')));give.append(row);
     const r2=el('div','row'),tx=inp('Message (shown to everyone as a notice)','420px');tx.maxLength=200;
     r2.append(tx,btn('Send','gold',async()=>{const r=await call('announce',{text:tx.value});if(r.ok){toast('Sent');tx.value=''}}));ann.append(r2);
-    body.append(srv,give,ann,pl);
+    body.append(...(OWN?[srv,give,ann,pl]:[srv,pl]));
     const load=async()=>{
       const r=await call('state');if(tab!=='over'||!r.ok)return;const s=r.s;
       srv.innerHTML='';srv.append(el('h2','','Server'));
       const l1=el('p','note');l1.textContent=s.connections+' connected   ·   '+s.accounts+' accounts   ·   '+s.rooms+' rooms   ·   '+s.openReports+' open reports';
       const l2=el('p','note');l2.textContent='Saving: '+(s.storage.mode==='supabase'?'Supabase':'a file on the server (lost when a free Render server restarts)')+' - '+(s.storage.ok===false?'PROBLEM: '+s.storage.err:s.storage.ok?'working':'not saved yet');if(s.storage.ok===false)l2.style.color='#ffb3b3';
       const l3=el('p','note');l3.textContent='Email: '+(s.mail==='off'?'not set up':s.mail==='log'?'dev mode (codes only appear in the server log)':'on')+'   ·   Voice: '+s.turn;
-      srv.append(l1,l2,l3);
+      if(OWN){const l4=el('p','note');l4.textContent='Admins: '+(s.staff.length?s.staff.join(', '):'none yet (make someone an admin from the Players tab)');srv.append(l1,l2,l3,l4)}else srv.append(l1,l2,l3);
       pl.innerHTML='';pl.append(el('h2','','Connected now'));
-      s.players.forEach(x=>{const d=el('div','frow'),g=el('div','grow'),n=el('b');n.textContent=x.name+(x.acct?'':'  (guest)');const sm=el('small');sm.textContent=(x.room||'not in a room')+'   ·   '+x.ip;g.append(n,sm);d.append(g);
-        if(x.acct&&x.acct!==ACC.name)d.append(btn('Manage','alt',()=>{who=x.acct;setTab('pl')}));
-        if(x.acct!==ACC.name)d.append(btn('Kick','alt',async()=>{if(confirm('Disconnect '+x.name+'?')){await call('kick',{id:x.id});load()}}));pl.append(d)});
+      s.players.forEach(x=>{const d=el('div','frow'),g=el('div','grow'),n=el('b');n.textContent=staffMark(x.staff)+x.name+(x.acct?'':'  (guest)');if(x.staff)n.classList.add('rb');const sm=el('small');sm.textContent=(x.room||'not in a room')+(x.ip?'   ·   '+x.ip:'');g.append(n,sm);d.append(g);
+        const locked=x.staff&&(!OWN||x.staff==='owner');
+        if(x.acct&&x.acct!==ACC.name&&!(locked&&x.staff==='owner'))d.append(btn('Manage','alt',()=>{who=x.acct;setTab('pl')}));
+        if(x.acct!==ACC.name&&!locked)d.append(btn('Kick','alt',async()=>{if(confirm('Disconnect '+x.name+'?')){await call('kick',{id:x.id});load()}}));pl.append(d)});
     };
     load();timer=setInterval(load,6000);
   }
@@ -3293,14 +3305,15 @@ function renderAdmin(v){
     const p=box('Find a player'),row=el('div','row'),nm=inp('Username','200px'),out=el('div');nm.value=who;
     const look=async()=>{
       who=nm.value.trim();out.innerHTML='';if(!who)return;const r=await call('lookup',{name:who});if(!r.ok)return;const u=r.u,c=el('div');c.style.marginTop='12px';
-      c.append(el('h3','',u.name+(u.owner?'  (owner)':'')+'   ·   '+(u.online?'online':'offline')));
+      c.append(el('h3','',u.name+(u.owner?'  (owner)':u.admin?'  (admin)':'')+'   ·   '+(u.online?'online':'offline')));
       const info=el('p','note');info.textContent=u.coins.toLocaleString()+' coins   ·   '+u.xp.toLocaleString()+' xp   ·   '+u.owned+' cosmetics   ·   '+u.friends+' friends   ·   joined '+new Date(u.created).toLocaleDateString()+(u.email?'   ·   email '+u.email+(u.verified?' (verified)':''):'');c.append(info);
       if(u.ban){const x=el('p','note');x.style.color='#ffb3b3';x.textContent='Banned until '+when(u.ban);c.append(x)}
       if(u.muted){const x=el('p','note');x.style.color='#ffd28a';x.textContent='Muted until '+when(u.muted);c.append(x)}
       const r1=el('div','row'),am=inp('Amount','140px','number');am.value=1000;
       const co=async mode=>{const x=await call('coins',{name:u.name,amount:+am.value,mode});if(x.ok){toast(u.name+' now has '+x.coins.toLocaleString()+' coins');look()}};
-      r1.append(am,btn('Add coins','gold',()=>co('add')),btn('Set coins','alt',()=>co('set')),btn('Unlock all cosmetics','alt',async()=>{const x=await call('unlockall',{name:u.name,ids:COS.map(k=>k.id)});if(x.ok){toast('Unlocked everything for '+u.name);look()}}));c.append(r1);
-      if(!u.owner){
+      r1.append(am,btn('Add coins','gold',()=>co('add')),btn('Set coins','alt',()=>co('set')),btn('Unlock all cosmetics','alt',async()=>{const x=await call('unlockall',{name:u.name,ids:COS.map(k=>k.id)});if(x.ok){toast('Unlocked everything for '+u.name);look()}}));if(OWN)c.append(r1);
+      if(OWN&&!u.owner){const r5=el('div','row');r5.append(btn(u.admin?'Remove admin':'Make admin',u.admin?'alt':'gold',async()=>{const x=await call('setadmin',{name:u.name,on:!u.admin});if(x.ok){toast(u.name+(x.admin?' is now an admin':' is no longer an admin'));look()}}),el('span','note',u.admin?'Admins get a rainbow nametag and moderation tools.':'Admins get a rainbow nametag, and can mute, ban, kick and delete chat.'));c.append(r5)}
+      if(!u.owner&&(OWN||!u.admin)){
         const r3=el('div','row');r3.append(el('span','note','Ban: '));
         [['1 hour',1],['1 day',24],['7 days',168],['Permanent',87600]].forEach(([t,h])=>r3.append(btn(t,'alt',async()=>{if(confirm('Ban '+u.name+' for '+t+'?')){const x=await call('ban',{name:u.name,hours:h});if(x.ok){toast('Banned');look()}}})));
         r3.append(btn('Lift ban','gold',async()=>{const x=await call('ban',{name:u.name,hours:0});if(x.ok){toast('Ban lifted');look()}}));c.append(r3);
@@ -3321,7 +3334,7 @@ function renderAdmin(v){
       for(const m of msgs){
         const d=el('div','msg');d.style.cssText='text-align:left;display:flex;gap:8px;align-items:baseline';
         const t=el('span');t.style.cssText='color:var(--mute);font-size:12px';t.textContent=new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-        const b=el('b');b.textContent=m.from;const x=el('span');x.textContent=m.text;x.style.flex='1';
+        const b=el('b');b.textContent=staffMark(m.staff)+m.from;if(m.staff)b.classList.add('rb');const x=el('span');x.textContent=m.text;x.style.flex='1';
         const del=btn('Delete','alt',async()=>{await call('delmsg',{ch:chCur,ts:m.ts,from:m.from})});del.style.cssText='padding:2px 10px;min-height:0;font-size:12px';
         d.append(t,b,x,del);list.append(d);
       }
@@ -3346,7 +3359,7 @@ function renderAdmin(v){
   }
   async function audit(){
     const r=await call('audit');if(tab!=='log'||!r.ok)return;const p=box('Audit log');if(!r.log.length)p.append(el('p','note','Nothing yet.'));
-    r.log.forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.a+(x.x?'   ·   '+x.x:'')+(x.d?'   ·   '+x.d:'');b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='6px';p.append(d)});
+    r.log.forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=(x.by?x.by+': ':'')+x.a+(x.x?'   ·   '+x.x:'')+(x.d?'   ·   '+x.d:'');b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='6px';p.append(d)});
     body.append(p);
   }
   draw();stopLoop=stopAll;
@@ -3365,7 +3378,7 @@ function renderChat(v){
     list.innerHTML='';const msgs=ACC.channel(cur).msgs.filter(m=>!ACC.isBlocked(m.from));
     if(!msgs.length)list.append(el('p','note','No messages yet. Say hello!'));
     for(const m of msgs){const d=el('div','msg');d.style.textAlign='left';const t=el('span');t.style.cssText='color:var(--mute);font-size:12px;margin-right:8px';t.textContent=new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-      const b=el('b');b.textContent=m.from;if(m.from===ACC.name)b.style.color='var(--gold,#f2b84b)';else{b.style.cursor='pointer';b.title='Report, block or gift';b.onclick=()=>playerMenu(m.from,cur)}d.append(t,b,document.createTextNode(': '+m.text));list.append(d)}
+      const b=el('b');b.textContent=staffMark(m.staff)+m.from;if(m.staff)b.classList.add('rb');if(m.from===ACC.name&&!m.staff)b.style.color='var(--gold,#f2b84b)';else{b.style.cursor='pointer';b.title='Report, block or gift';b.onclick=()=>playerMenu(m.from,cur)}d.append(t,b,document.createTextNode(': '+m.text));list.append(d)}
     list.scrollTop=1e9;
     const off=!NET.online(),guest=!ACC.name;inp.disabled=send.disabled=off||guest;inp.placeholder=off?'Offline':guest?'Sign in to chat':'Message #'+cur;
     info.textContent=off?connNote():guest?'You can read along. Sign in on the Account page to talk.':'Be kind. Messages are filtered and slowed down to keep chat readable.';
