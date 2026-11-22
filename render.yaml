@@ -1,0 +1,25 @@
+# Optional Render Blueprint: New > Blueprint, point it at your repo.
+# Fill in the values marked sync:false in the Render dashboard (they are secrets, so they are not stored here).
+services:
+  - type: web
+    name: excalibur
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: ADMIN_TOKEN
+        generateValue: true
+      # Keeps accounts when the free plan restarts (see README, "Saving accounts")
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      # Email for verification codes and password reset (see README, "Email")
+      - key: EMAIL_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
