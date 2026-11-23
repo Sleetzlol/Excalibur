@@ -92,6 +92,20 @@ if they leave. When the host starts the match, the room locks, empty slots fill 
 You can build your own games on the same pieces: `session.rpc(name, args, target)` (`'others'`, `'all'`, `'master'` or a player id), `session.on(name, fn)`,
 `session.isMaster()`, `session.onMaster`, `session.onJoin`, `session.onLeave`, and a `lock` message from the master that closes the room.
 
+## Parkour: Classic and Hardcore
+Both modes are in the Parkour lobby (online, the host picks; offline, you pick). The choice is remembered.
+- **Classic:** eight runners on a random course that gets harder every round. The last runner to finish each round is out.
+- **Hardcore:** nobody is eliminated for finishing last. Instead a **wall of fire** sweeps through the level after a few seconds and eliminates anyone it catches. Its speed is a share of a runner's top speed: 50% in round 1, about 70% by round 5, 88% by round 10, 97% by round 15 and 100% from round 18 or so, so it gains fast at first and then more slowly. The speed stays the same within a round.
+  Runners are 80% faster than in classic (414 px/s instead of 230 px/s). **Everyone has exactly the same speed, bots included.** The maps are much longer (about 9,000 px in round 1, over 40,000 px in round 20) and use a harsher mix of obstacles. Each of the 20 rounds has its own background, and the whole look is dark red. The game ends after round 20. If the last survivors are all caught in the same round, or several clear round 20, a **tiebreaker round** decides it (first to the finish wins, otherwise whoever got furthest).
+  New blocks: **spikes**, **phantom** floors that give way almost at once, **dash** pads (a burst of extra speed), **float** pads (a super-jump), and **saws** (moving circular saws that kill on touch). Lava platforms and spike platforms always leave room to take off after you land.
+  Coins: 30 per round cleared, plus 400 for winning and 300 for clearing all 20.
+- **Classic bots** no longer step backwards for a run-up. Each has its own habits: some hop a lot even on flat ground, and skilled bots tend to hop across backwards conveyors while others walk through. Weaker classic bots run a bit slower than you.
+- **Hardcore bots** are much stronger than classic ones: very high skill, almost no mistakes, and half the random hopping. They run at exactly the same speed as you. The one thing they get that you do not is a faster respawn (0.35 s instead of 0.9 s). In simulated games (one course per round) they cleared rounds 3, 6 and 9 with all seven bots, round 12 with five, round 14 with six, round 17 with three and round 20 with two, so roughly half are still running in round 15. These are single samples, so expect variation.
+- Online, the host's browser runs the bots, the clock, the fire and the results (same as before); every player sees the same map and fire.
+
+Hardcore maps were tuned with simulated bot runs, and the later rounds get steadily harder (round 20 is meant to be brutal).
+Very rarely a generated stretch is nastier than it should be; reporting the round number helps.
+
 ## Reports and moderation
 Players report from the People list (or by clicking a name in global chat) with a reason and note; the recent chat is attached.
 Three different reporters in an hour mute a player for 15 minutes automatically. Players can also Block someone, which hides their chat and mutes their voice on that device.
