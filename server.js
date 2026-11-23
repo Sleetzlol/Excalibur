@@ -108,7 +108,18 @@ async function loadDb(){
       await new Promise(r=>setTimeout(r,2000));
     }
   }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];indexEmails();
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];
+  /* accounts made by older versions may be missing fields: fill them in so nothing downstream ever sees undefined */
+  for(const a of Object.values(db.accounts)){
+    if(!Array.isArray(a.owned)||!a.owned.length)a.owned=cosList(a.owned);
+    if(!a.eq||typeof a.eq!=='object')a.eq=eqObj(a.eq);
+    if(!Array.isArray(a.ledger))a.ledger=[];
+    if(!a.friends||typeof a.friends!=='object')a.friends={};
+    if(!a.gift||typeof a.gift!=='object')a.gift={d:'',n:0};
+    if(typeof a.coins!=='number'||!isFinite(a.coins))a.coins=0;
+    if(typeof a.xp!=='number'||!isFinite(a.xp))a.xp=0;
+  }
+  indexEmails();
 }
 let dirty=false,saving=false;const touch=()=>{dirty=true};
 async function flush(){
@@ -346,7 +357,7 @@ const ghist={};for(const ch of GCH)ghist[ch]=[];
 const gcount=ch=>{let n=0;for(const c of conns.values())if(c.gch.has(ch))n++;return n};
 function globalMsg(c,m){
   const ch=String(m.ch||'');if(!GCH.includes(ch))return;
-  if(m.t==='g.join'){c.gch.add(ch);c.send({t:'g.history',ch,msgs:ghist[ch]});for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.count',ch,n:gcount(ch)});return}
+  if(m.t==='g.join'){c.gch.add(ch);c.send({t:'g.history',ch,msgs:ghist[ch]||[]});for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.count',ch,n:gcount(ch)});return}
   if(m.t==='g.leave'){c.gch.delete(ch);return}
   if(m.t==='g.say'){
     const a=c.acct;if(!a)return c.send({t:'notice',text:'Sign in to chat in global channels.'});

@@ -833,13 +833,13 @@ const COS=[
 const cosOf=id=>COS.find(c=>c.id===id)||COS[0];
 const RAINBOW=['#ff3b3b','#ff9b3b','#ffe93b','#4bff7a','#3bd6ff','#6b6bff','#d94bff','#ff4bb0'];
 const isRainbow=id=>id==='s_rainbow';
-const rainCol=t=>RAINBOW[Math.floor((t*.6)%RAINBOW.length)%RAINBOW.length];
+const rainCol=t=>RAINBOW[((Math.floor((+t||0)*.6)%RAINBOW.length)+RAINBOW.length)%RAINBOW.length];
 const cosCol=(id,t)=>isRainbow(id)?rainCol(t||0):(cosOf(id).c||'#4f8cff');
 const DEFAULT_COS=['s_blue','h_none','h_cap','t_none','k_none'];
 let owned=store.get('owned',DEFAULT_COS.slice());
 let eq=store.get('eq',{skin:'s_blue',hat:'h_cap',trail:'t_none',kill:'k_none'});
 const saveCos=()=>{store.set('owned',owned);store.set('eq',eq);ACCHOOK.dirty()};
-function hex2rgb(h){const n=parseInt(h.slice(1),16);return[n>>16,n>>8&255,n&255]}
+function hex2rgb(h){h=typeof h==='string'&&h[0]==='#'?h:'#4f8cff';const n=parseInt(h.slice(1),16)||0;return[n>>16,n>>8&255,n&255]}
 function shade(h,a){const[n1,n2,n3]=hex2rgb(h),f=v=>Math.round(a<0?v*(1+a):v+(255-v)*a);
   return`rgb(${f(n1)},${f(n2)},${f(n3)})`}
 function rrp(c,x,y,w,h,r){c.beginPath();if(c.roundRect)c.roundRect(x,y,w,h,r);else c.rect(x,y,w,h)}
@@ -2274,7 +2274,7 @@ function parkourGame(box,win,opts){
       cx.textAlign='left'}
     const lb=[...runners].sort((a,b)=>(a.elim-b.elim)||((b.fin?1:0)-(a.fin?1:0))||(a.fin&&b.fin?a.place-b.place:b.x-a.x));
     lb.forEach((u,i)=>{const y=22+i*18;rrp(cx,VW-176,y-12,166,16,8);cx.fillStyle=u===self?'rgba(242,184,75,.3)':dk(.62);cx.fill();
-      cx.font='700 11px DM Sans,sans-serif';cx.textAlign='left';cx.fillStyle=u.elim?'#6b7488':nameCol(u);cx.fillText(u.name.slice(0,10),VW-170,y);
+      cx.font='700 11px DM Sans,sans-serif';cx.textAlign='left';cx.fillStyle=u.elim?'#6b7488':nameCol(u);cx.fillText(String(u.name||'').slice(0,10),VW-170,y);
       cx.textAlign='right';cx.fillStyle=u.elim?'#ff8a8a':u.fin?'#9be8a0':'#cfd6e6';cx.fillText(u.elim?(u.burnt?'burned':'out'):u.fin?'#'+u.place+'  '+u.finT.toFixed(1)+'s':Math.round(clamp(u.x/C.finX,0,1)*100)+'%',VW-16,y)});
     cx.textAlign='left';feed.slice(-4).forEach((f,i)=>{cx.globalAlpha=Math.min(1,f.t);cx.fillStyle=f.c;cx.strokeStyle='rgba(0,0,0,.6)';cx.lineWidth=3;cx.font='700 12px DM Sans,sans-serif';cx.strokeText(f.txt,12,84+i*16);cx.fillText(f.txt,12,84+i*16)});cx.globalAlpha=1;
     cx.textAlign='center';
@@ -2955,7 +2955,7 @@ const NET=(()=>{
     sock.onopen=()=>{opened=true;clearTimeout(to)};
     sock.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
       if(m.t==='welcome'){id=m.id;if(Array.isArray(m.ice)&&m.ice.length)ice=m.ice;online=true;connecting=false;retry=0;ACC.config(m);readyRes();for(const s of sessions)s.rejoin();ACC.onWelcome();return}
-      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){ACC.msg(m);return}
+      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
       receive(m)};
     sock.onclose=()=>{clearTimeout(to);const was=online;online=false;connecting=false;if(ws===sock)ws=null;readyRes();if(was){for(const s of sessions)s.connLost();ACC.onClose()}
       clearTimeout(rtimer);rtimer=setTimeout(connect,Math.min(30000,2000*(++retry)))};
@@ -2969,7 +2969,7 @@ const NET=(()=>{
 
 const NETUI={
   bubble(cx,x,y,text){
-    cx.font='600 13px DM Sans,sans-serif';cx.textAlign='center';const t=text.slice(0,44),w=Math.min(280,cx.measureText(t).width+20);
+    cx.font='600 13px DM Sans,sans-serif';cx.textAlign='center';const t=String(text||'').slice(0,44),w=Math.min(280,cx.measureText(t).width+20);
     rrp(cx,x-w/2,y-26,w,24,12);cx.fillStyle='rgba(255,255,255,.95)';cx.fill();cx.beginPath();cx.moveTo(x-5,y-3);cx.lineTo(x+5,y-3);cx.lineTo(x,y+4);cx.fill();cx.fillStyle='#16182a';cx.fillText(t,x,y-10);
   },
   tag(cx,q,x,y){
@@ -3443,7 +3443,7 @@ const ACC=(()=>{
   });
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
-  function applyWallet(u){quiet(u.coins);xp=u.xp;store.set('xp',xp);drawLv();owned=u.owned.slice();eq={...eq,...u.eq};store.set('owned',owned);store.set('eq',eq)}
+  function applyWallet(u){quiet(+u.coins||0);xp=+u.xp||0;store.set('xp',xp);drawLv();owned=Array.isArray(u.owned)&&u.owned.length?u.owned.slice():DEFAULT_COS.slice();eq={...eq,...(u.eq||{})};store.set('owned',owned);store.set('eq',eq)}
   const signed=(v)=>{signedIn=v;if(!v){signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
@@ -3461,7 +3461,7 @@ const ACC=(()=>{
     case'user.update':A.info=m.user;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();fire('auth');break;
     case'gift.in':quiet(coins+m.amount);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
     case'wallet.set':quiet(m.coins);toast('The server corrected your balance.');break;
-    case'g.history':chan(m.ch).msgs=m.msgs.slice();fire('chat');break;
+    case'g.history':chan(m.ch).msgs=(Array.isArray(m.msgs)?m.msgs:[]).slice();fire('chat');break;
     case'g.msg':{const c=chan(m.ch);c.msgs.push({from:m.from,text:m.text,ts:m.ts,staff:m.staff||''});if(c.msgs.length>100)c.msgs.shift();fire('chat');break}
     case'g.count':chan(m.ch).n=m.n;fire('chat');break;
     case'g.del':{const c=chan(m.ch);c.msgs=c.msgs.filter(x=>!(x.ts===m.ts&&x.from===m.from));fire('chat');break}
@@ -3622,8 +3622,8 @@ function renderAccount(v){
       emailBox(p);
       p.append(el('h3','','Recent activity'));
       const lg=el('div','rlist');lg.style.maxHeight='220px';lg.style.maxWidth='100%';
-      if(!ACC.ledger.length)lg.append(el('p','note','Gifts you send and receive show up here.'));
-      for(const x of ACC.ledger.slice(-20).reverse()){const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.text;b.textContent=new Date(x.t).toLocaleDateString();b.style.color='var(--mute)';d.append(a,b);lg.append(d)}
+      if(!(ACC.ledger||[]).length)lg.append(el('p','note','Gifts you send and receive show up here.'));
+      for(const x of (ACC.ledger||[]).slice(-20).reverse()){const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.text;b.textContent=new Date(x.t).toLocaleDateString();b.style.color='var(--mute)';d.append(a,b);lg.append(d)}
       p.append(lg);
     }else if(mode==='reset'){
       p.append(el('p','note',step===1?'Enter your username, or the email on your account. If it has a verified email, we send a 6-digit code.':'A code was sent if that account has a verified email. It works for 15 minutes.'));
@@ -3721,7 +3721,7 @@ function renderAdmin(v){
         [['10 minutes',10],['1 hour',60],['1 day',1440]].forEach(([t,m])=>r4.append(btn(t,'alt',async()=>{const x=await call('mute',{name:u.name,minutes:m});if(x.ok){toast('Muted');look()}})));
         r4.append(btn('Unmute','gold',async()=>{const x=await call('mute',{name:u.name,minutes:0});if(x.ok){toast('Unmuted');look()}}));c.append(r4);
       }
-      if(u.ledger.length){c.append(el('h3','','Recent activity'));u.ledger.slice().reverse().forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.text;b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='4px';c.append(d)})}
+      if((u.ledger||[]).length){c.append(el('h3','','Recent activity'));(u.ledger||[]).slice().reverse().forEach(x=>{const d=el('div','rrow'),a=el('span'),b=el('span');a.textContent=x.text;b.textContent=when(x.t);b.style.color='var(--mute)';d.append(a,b);d.style.marginTop='4px';c.append(d)})}
       out.append(c);
     };
     nm.onkeydown=e=>{if(e.key==='Enter')look()};row.append(nm,btn('Look up','gold',look));p.append(row,out);body.append(p);if(who)look();
