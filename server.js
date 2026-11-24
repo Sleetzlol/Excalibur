@@ -53,7 +53,7 @@ async function refreshIce(){
   }catch(e){console.error('Voice: could not get TURN servers: '+e.message)}
 }
 const GUID='258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},parkour:{label:'Parkour',max:8},tournament:{label:'Tournament',max:8},ctf:{label:'Capture the Flag',max:8},royale:{label:'Battle Royale',max:12},survival:{label:'Wave Survival',max:4},gungame:{label:'Gun Game',max:8},hideseek:{label:'Hide and Seek',max:8},world:{label:'Survival World',max:8}};
+const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},parkour:{label:'Parkour',max:8},tournament:{label:'Tournament',max:8},ctf:{label:'Capture the Flag',max:8},royale:{label:'Battle Royale',max:12},survival:{label:'Wave Survival',max:4},gungame:{label:'Gun Game',max:8},hideseek:{label:'Hide and Seek',max:8},world:{label:'Survival World',max:8},event:{label:'Wheel of Fortune',max:40}};
 const GCH=['general','lfg','casino'];
 const LIM={maxPayload:32768,rpcMax:24000,perIp:+process.env.PER_IP||8,global:400,msgPerSec:80,chatPerSec:1,chatBurst:3,strikes:60,banMs:10*60*1000,
   accounts:5000,authPerMin:+process.env.AUTH_PER_MIN||10,giftMax:5000,giftDay:5000,tokenDays:30,startCoinsMax:20000};
@@ -108,7 +108,7 @@ async function loadDb(){
       await new Promise(r=>setTimeout(r,2000));
     }
   }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];db.dm=db.dm&&typeof db.dm==='object'?db.dm:{};
   /* accounts made by older versions may be missing fields: fill them in so nothing downstream ever sees undefined */
   for(const a of Object.values(db.accounts)){
     if(!Array.isArray(a.owned)||!a.owned.length)a.owned=cosList(a.owned);
@@ -155,7 +155,9 @@ const key=n=>String(n||'').toLowerCase();
 const validName=n=>/^[A-Za-z0-9_]{3,16}$/.test(n)&&!RESERVED.has(n.toLowerCase());
 const cosList=a=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(x)))].slice(0,200):['s_blue','h_none','h_cap','t_none','k_none'];
 const eqObj=e=>{const o={skin:'s_blue',hat:'h_cap',trail:'t_none',kill:'k_none'};if(e&&typeof e==='object')for(const k in o)if(typeof e[k]==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(e[k]))o[k]=e[k];return o};
-const profile=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,staff:staffOf(c.acct),skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none'});
+const profile=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,staff:staffOf(c.acct),skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none',
+  pat:/^[a-z]{2,10}$/.test(p&&p.pat)?p.pat:'',tr:/^t_[a-z]{2,12}$/.test(p&&p.tr)?p.tr:'t_none',kf:/^k_[a-z]{2,12}$/.test(p&&p.kf)?p.kf:'k_none',
+  pt:c.party?sha('pt:'+c.party).slice(0,8):''});   /* pt: a tag shared by party members (not the join code) so games can put them on one team */
 const pub=r=>({id:r.id,kind:r.kind,name:r.name,max:r.max,priv:false,count:r.members.size});
 const open=r=>!r.priv&&!r.locked&&r.members.size<r.max;
 const clientIp=req=>{const f=TRUST&&req.headers['x-forwarded-for'];return f?String(f).split(',')[0].trim():req.socket.remoteAddress};
@@ -235,6 +237,7 @@ function broadcast(room,o,except){for(const c of room.members)if(c!==except)c.se
 function leaveRoom(c){
   const r=c.room&&rooms.get(c.room);c.room=null;if(!r)return;
   r.members.delete(c);broadcast(r,{t:'leave',room:r.id,from:c.id});
+  if(r===eventRoom&&c.acct&&c.acct.key===r.ownerKey){for(const x of r.members)x.send({t:'user.eventend'});eventRoom=null}
   if(r.master===c){r.master=r.members.values().next().value||null;if(r.master)broadcast(r,{t:'master',room:r.id,id:r.master.id})}   /* the longest-standing member takes over */
   if(!r.members.size)rooms.delete(r.id);
   if(c.acct)presence(c.acct.key);
@@ -246,6 +249,7 @@ function enter(c,room,p,req){
   c.p=profile(c,p);
   const others=[...room.members].map(x=>x.p);
   room.members.add(c);c.room=room.id;if(!room.master)room.master=c;
+  if(room.ownerKey&&c.acct&&c.acct.key===room.ownerKey&&room.master!==c){room.master=c;broadcast(room,{t:'master',room:room.id,id:c.id},c)}
   const meta=room.priv?{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:true,code:room.code}:{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:false};
   if(room.wseed!=null){meta.wseed=room.wseed;meta.srv=room.srv||'';meta.gm=room.gm||'s';meta.df=room.df||'n'}
   c.send({t:'roster',room:room.id,req,meta,players:others,master:room.master.id});
@@ -324,7 +328,7 @@ function gift(c,m){
 /* ---------- friends ---------- */
 function roomInfo(c){const r=c&&c.room&&rooms.get(c.room);return r?{id:r.id,kind:r.kind,name:r.name,count:r.members.size,max:r.max,priv:r.priv}:null}
 function friendList(a){
-  const out=[];for(const k in a.friends){const o=db.accounts[k];if(!o)continue;const c=online.get(k);out.push({name:o.name,status:a.friends[k],online:!!c,room:a.friends[k]==='friend'?roomInfo(c):null})}
+  const out=[];for(const k in a.friends){const o=db.accounts[k];if(!o)continue;const c=online.get(k);const pa=c&&c.party&&parties.get(c.party);out.push({name:o.name,status:a.friends[k],online:!!c,room:a.friends[k]==='friend'?roomInfo(c):null,party:a.friends[k]==='friend'&&pa&&pa.open?pa.members.size:0,unread:dmUnread(a,o)})}
   return out;
 }
 const pend=new Map();
@@ -354,6 +358,37 @@ function friendMsg(c,m){
   }
   touch();reply(true);pushFriends(a.key);pushFriends(o.key);
 }
+
+/* ---------- direct messages between friends (kept on the server so staff can review them for safety) ---------- */
+const DM_KEEP=60,DM_CONVOS=800;
+const dmKey=(a,b)=>[a.key,b.key].sort().join('|');
+function dmUnread(a,o){const cv=db.dm[dmKey(a,o)];if(!cv)return 0;const seen=(cv.seen&&cv.seen[a.key])||0;let n=0;for(const x of cv.m)if(x.ts>seen&&x.f!==a.key)n++;return n}
+function dmPush(a,o,msg){
+  const k=dmKey(a,o);let cv=db.dm[k];if(!cv){cv=db.dm[k]={a:[a.key,o.key].sort(),m:[],seen:{},at:0};
+    const keys=Object.keys(db.dm);if(keys.length>DM_CONVOS){keys.sort((x,y)=>db.dm[x].at-db.dm[y].at);for(const x of keys.slice(0,keys.length-DM_CONVOS))delete db.dm[x]}}
+  cv.m.push(msg);if(cv.m.length>DM_KEEP)cv.m.splice(0,cv.m.length-DM_KEEP);cv.at=msg.ts;cv.seen[a.key]=msg.ts;touch();
+  const out={t:'dm.msg',with:o.name,m:{...msg,f:a.name}},inn={t:'dm.msg',with:a.name,m:{...msg,f:a.name}};
+  const ac=online.get(a.key),oc=online.get(o.key);if(ac)ac.send(out);if(oc){oc.send(inn);pushFriends(o.key)}
+}
+const dmView=(cv,a)=>cv.m.map(x=>({...x,f:(db.accounts[x.f]||{}).name||x.f}));
+function dmMsg(c,m){
+  const a=c.acct;if(!a)return c.send({t:'notice',text:'Sign in to send messages.'});
+  const o=m.with?db.accounts[key(clean(m.with,24))]:null;
+  if(m.t==='dm.list'){const list=[];for(const k in db.dm){const cv=db.dm[k];if(!cv.a.includes(a.key))continue;const ok=cv.a[0]===a.key?cv.a[1]:cv.a[0],ob=db.accounts[ok];if(!ob)continue;const last=cv.m[cv.m.length-1];list.push({with:ob.name,last:last?{f:(db.accounts[last.f]||{}).name,t:last.k==='party'?'🎉 Party invite':last.t,ts:last.ts}:null,unread:dmUnread(a,ob)})}
+    list.sort((x,y)=>(y.last?y.last.ts:0)-(x.last?x.last.ts:0));return c.send({t:'dm.list',list})}
+  if(!o)return c.send({t:'notice',text:'No player with that username.'});
+  if(o===a)return;
+  if(m.t==='dm.history'){const cv=db.dm[dmKey(a,o)];return c.send({t:'dm.history',with:o.name,msgs:cv?dmView(cv,a):[]})}
+  if(m.t==='dm.read'){const cv=db.dm[dmKey(a,o)];if(cv){cv.seen[a.key]=Date.now();touch();pushFriends(a.key)}return}
+  if(a.friends[o.key]!=='friend')return c.send({t:'notice',text:'You can only message friends.'});
+  if(a.muted>Date.now()||c.muteUntil>Date.now())return c.send({t:'notice',text:'You are muted.'});
+  const now=Date.now();c.dmT=(c.dmT||[]).filter(x=>now-x<10000);if(c.dmT.length>=6)return c.send({t:'notice',text:'Slow down a little.'});c.dmT.push(now);
+  if(m.t==='dm.send'){let text=clean(m.text,300);for(const w of BAD)text=text.replace(new RegExp(w,'ig'),x=>'*'.repeat(x.length));if(!text)return;dmPush(a,o,{f:a.key,t:text,ts:now});return}
+  if(m.t==='dm.invite'){const pa=c.party&&parties.get(c.party);if(!pa)return c.send({t:'notice',text:'Make a party first.'});dmPush(a,o,{f:a.key,t:'Join my party!',k:'party',code:pa.code,ts:now});return}
+}
+/* ---------- the Wheel of Fortune event: the owner pulls everyone online into one room ---------- */
+let eventRoom=null;
+function eventInvite(x){if(eventRoom&&rooms.has(eventRoom.id)&&!eventRoom.members.has(x))x.send({t:'user.event',code:eventRoom.code,by:eventRoom.by})}
 
 /* ---------- global chat channels ---------- */
 const ghist={};for(const ch of GCH)ghist[ch]=[];
@@ -536,7 +571,8 @@ function worldMsg(c,m,t){
 /* ---------- parties: a group that plays together ---------- */
 const parties=new Map();
 function pcode(){let s;do{s=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[crypto.randomInt(31)]).join('')}while(parties.has(s));return s}
-const partyView=pa=>({code:pa.code,leader:pa.leader,members:[...pa.members].map(([id,mm])=>({id,name:mm.name}))});
+const partyView=pa=>({code:pa.code,tag:sha('pt:'+pa.code).slice(0,8),open:!!pa.open,leader:pa.leader,members:[...pa.members].map(([id,mm])=>({id,name:mm.name}))});
+function partyPresence(pa){for(const id of pa.members.keys()){const x=conns.get(id);if(x&&x.acct)presence(x.acct.key)}}
 function partySend(pa){const vw=partyView(pa);for(const id of pa.members.keys()){const x=conns.get(id);if(x)x.send({t:'user.party',party:vw})}}
 function partyLeave(c){const pa=c.party&&parties.get(c.party);c.party=null;if(!pa)return;pa.members.delete(c.id);try{c.send({t:'user.party',party:null})}catch(e){}
   if(!pa.members.size){parties.delete(pa.code);return}if(pa.leader===c.id)pa.leader=pa.members.keys().next().value;partySend(pa)}
@@ -583,16 +619,16 @@ function adminMsg(c,m){
       audit('effect',list?'whitelist':'everyone',f.k+(f.v!==undefined?' '+f.v:''));return ok({n})}
     case'admin.poll':{if(poll)return no('A poll is already running.');const q=clean(m.q,90),a=clean(m.a,28),b=clean(m.b,28);if(!q||!a||!b)return no('Fill in the question and both options.');
       const secs=Math.floor(num(m.secs||30,10,180));
-      poll={id:crypto.randomBytes(3).toString('hex'),q,a,b,end:Date.now()+secs*1000,votes:new Map(),effA:cleanFx(m.effA),effB:cleanFx(m.effB)};
+      poll={id:crypto.randomBytes(3).toString('hex'),q,a,b,by:c.acct.name,end:Date.now()+secs*1000,votes:new Map(),effA:cleanFx(m.effA),effB:cleanFx(m.effB)};
       poll.timer=setTimeout(endPoll,secs*1000);poll.iv=setInterval(()=>{const k=pollCounts();for(const x of conns.values())x.send({t:'user.pollcount',id:poll&&poll.id,counts:k})},1000);
-      for(const x of conns.values())x.send({t:'user.poll',poll:{id:poll.id,q,a,b,secs,left:secs}});audit('poll',q,a+' / '+b);return ok({})}
+      for(const x of conns.values())x.send({t:'user.poll',poll:{id:poll.id,q,a,b,by:poll.by,secs,left:secs}});audit('poll',q,a+' / '+b);return ok({})}
     case'admin.endpoll':{endPoll();return ok({})}
     case'admin.kick':{const t=conns.get(String(m.id||''));if(!t)return no('That player already left.');if(t.acct&&(t.acct.key===OWNER_KEY||(lvl<2&&t.acct.admin)))return no(t.acct.key===OWNER_KEY?'The owner cannot be kicked.':'Admins cannot kick other admins.');
       if(m.ban)bans.set(t.ip,Date.now()+LIM.banMs);audit('kick',t.p?t.p.name:t.id,m.ban?'address blocked 10 min':'');t.kill(1008,'removed');return ok({})}
     case'admin.delmsg':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');const i=ghist[ch].findIndex(x=>x.ts===m.ts&&x.from===m.from);if(i<0)return no('That message is already gone.');
       ghist[ch].splice(i,1);for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.del',ch,ts:m.ts,from:m.from});audit('delete message',m.from,'#'+ch);return ok({})}
     case'admin.clear':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');ghist[ch].length=0;for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.clear',ch});audit('clear channel','#'+ch,'');return ok({})}
-    case'admin.announce':{if(ownerOnly())return;const text=clean(m.text,200);if(!text)return no('Type a message first.');for(const x of conns.values())x.send({t:'notice',text:'Announcement: '+text});audit('announce','',text);return ok({})}
+    case'admin.announce':{if(ownerOnly())return;const text=clean(m.text,200);if(!text)return no('Type a message first.');const secs=int(m.secs,5,60,15);for(const x of conns.values())x.send({t:'user.announce',text,by:c.acct.name,secs});audit('announce','',text);return ok({})}
     case'admin.reports':return ok({reports:db.reports.filter(r=>m.all||r.open).slice(-100).reverse()});
     case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)&&!(lvl<2&&a0.admin)?a0:null;
       if(m.action==='mute'&&a){a.muted=Date.now()+60*60000;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted}
@@ -601,6 +637,16 @@ function adminMsg(c,m){
     case'admin.setadmin':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('The owner is already the owner.');
       a.admin=!!m.on;audit(a.admin?'make admin':'remove admin',a.name,'');touch();pushTo(a,{t:'user.update',user:userView(a)});return ok({admin:a.admin})}
     case'admin.audit':return ok({log:db.audit.slice(-100).reverse()});
+    case'admin.dms':{const who=m.name?db.accounts[key(clean(m.name,24))]:null;if(m.name&&!who)return no('No account with that name.');const out=[];
+      for(const k in db.dm){const cv=db.dm[k];if(who&&!cv.a.includes(who.key))continue;const last=cv.m[cv.m.length-1];out.push({a:(db.accounts[cv.a[0]]||{}).name||cv.a[0],b:(db.accounts[cv.a[1]]||{}).name||cv.a[1],n:cv.m.length,at:cv.at,last:last?last.t:''})}
+      out.sort((x,y)=>y.at-x.at);return ok({list:out.slice(0,150)})}
+    case'admin.dmlog':{const A=db.accounts[key(clean(m.a,24))],B=db.accounts[key(clean(m.b,24))];if(!A||!B)return no('No such conversation.');const cv=db.dm[dmKey(A,B)];if(!cv)return no('No such conversation.');
+      audit('read dms',A.name+' / '+B.name,'');touch();return ok({msgs:dmView(cv,A)})}
+    case'admin.event':{if(ownerOnly())return;if(eventRoom&&rooms.has(eventRoom.id))return ok({code:eventRoom.code,again:true});
+      const id='r'+crypto.randomBytes(5).toString('hex');eventRoom={id,kind:'event',name:'Wheel of Fortune',max:KINDS.event.max,priv:true,code:code(),members:new Set(),master:null,locked:false,ownerKey:c.acct.key,by:c.acct.name};
+      rooms.set(id,eventRoom);audit('event','','start');
+      setTimeout(()=>{for(const x of conns.values())if(x!==c)eventInvite(x)},1500);return ok({code:eventRoom.code})}
+    case'admin.eventend':{if(ownerOnly())return;if(eventRoom){for(const x of eventRoom.members)x.send({t:'user.eventend'});eventRoom=null}return ok({})}
   }
 }
 
@@ -616,12 +662,21 @@ async function handle(c,m){
   if(t.startsWith('reset.'))return resetMsg(c,m);
   if(t==='report')return reportMsg(c,m);
   if(t.startsWith('friend.'))return friendMsg(c,m);
+  if(t.startsWith('dm.'))return dmMsg(c,m);
   if(t.startsWith('g.'))return globalMsg(c,m);
   if(t==='who'){c.send({t:'rooms',rooms:[...rooms.values()].filter(r=>!r.priv&&!r.locked).map(pub)});return}
   if(t.startsWith('world.')){worldMsg(c,m,t);return}
   if(t==='party.create'){partyLeave(c);const pa={code:pcode(),leader:c.id,members:new Map([[c.id,{name:clean(m.name,20)||'Player'}]]),room:null};parties.set(pa.code,pa);c.party=pa.code;partySend(pa);return}
   if(t==='party.join'){const pa=parties.get(clean(m.code,5).toUpperCase());if(!pa)return c.send({t:'notice',text:'There is no party with that code.'});if(pa.members.has(c.id))return;if(pa.members.size>=8)return c.send({t:'notice',text:'That party is full.'});partyLeave(c);pa.members.set(c.id,{name:clean(m.name,20)||'Player'});c.party=pa.code;partySend(pa);return}
   if(t==='party.leave'){partyLeave(c);return}
+  if(t==='party.open'){const pa=c.party&&parties.get(c.party);if(!pa||pa.leader!==c.id)return;pa.open=!!m.v;partySend(pa);partyPresence(pa);return}
+  if(t==='party.joinfriend'){   /* join a friend's party when they allow friends in, or with an invite they sent you */
+    const a=c.acct;if(!a)return c.send({t:'notice',text:'Sign in to join a friend\'s party.'});const o=db.accounts[key(clean(m.name,24))];
+    if(!o||a.friends[o.key]!=='friend')return c.send({t:'notice',text:'You can only join a friend\'s party.'});
+    const oc=online.get(o.key),pa=oc&&oc.party&&parties.get(oc.party);if(!pa)return c.send({t:'notice',text:o.name+' is not in a party right now.'});
+    const invited=m.code&&clean(m.code,5).toUpperCase()===pa.code;if(!pa.open&&!invited)return c.send({t:'notice',text:o.name+'\'s party is not open to friends.'});
+    if(pa.members.has(c.id))return;if(pa.members.size>=8)return c.send({t:'notice',text:'That party is full.'});
+    partyLeave(c);pa.members.set(c.id,{name:a.name});c.party=pa.code;partySend(pa);partyPresence(pa);return}
   if(t==='party.invite'){const pa=c.party&&parties.get(c.party);if(!pa||!pa.members.has(c.id))return;const nm=key(clean(m.target,24));
     for(const x of conns.values()){if(x===c||x.party===pa.code)continue;const n1=x.acct?key(x.acct.name):'',n2=x.p?key(x.p.name):'';if(nm&&(n1===nm||n2===nm)){x.send({t:'user.partyinv',from:pa.members.get(c.id).name,code:pa.code});return c.send({t:'notice',text:'Invite sent.'})}}
     return c.send({t:'notice',text:'That player is not online.'})}
@@ -744,7 +799,8 @@ server.on('upgrade',(req,socket)=>{
   const c=new Conn(socket,ip);conns.set(c.id,c);perIp.set(ip,(perIp.get(ip)||0)+1);
   if((METERED_KEY||CF_TOKEN)&&Date.now()-iceCache.at>12*3600e3)refreshIce();
   c.send({t:'welcome',id:c.id,ice:iceCache.list,channels:GCH,limits:{giftMax:LIM.giftMax,giftDay:LIM.giftDay}});
-  if(poll){const left=Math.max(1,Math.ceil((poll.end-Date.now())/1000));c.send({t:'user.poll',poll:{id:poll.id,q:poll.q,a:poll.a,b:poll.b,secs:left,left}})}
+  eventInvite(c);
+  if(poll){const left=Math.max(1,Math.ceil((poll.end-Date.now())/1000));c.send({t:'user.poll',poll:{id:poll.id,q:poll.q,a:poll.a,b:poll.b,by:poll.by,secs:left,left}})}
 });
 setInterval(()=>{for(const c of conns.values()){if(!c.pong){c.kill(1001,'timeout');continue}c.pong=false;try{c.s.write(frame(9,Buffer.alloc(0)))}catch(e){}}},25000).unref();
 setInterval(()=>{const now=Date.now();for(const[ip,t]of bans)if(t<now)bans.delete(ip)},60000).unref();

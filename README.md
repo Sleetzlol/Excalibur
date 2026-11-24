@@ -88,16 +88,40 @@ Every game opens an online intermission (up to 8 players, 12 for Battle Royale, 
 - **Parkour:** each player moves their own runner; the host runs the bots, the clock and the results.
 - **Tournament:** a bracket of eight in a sandy coliseum with stands and banners. A storm closes in so every duel ends.
 - **Capture the Flag:** Red vs Blue on a snowy floating island with a frozen pond. First to three, or the best score after seven minutes.
-- **Battle Royale:** up to 20 fighters ride a bus over a green island, land in towns, loot chests and stay inside the shrinking storm.
-- **Gun Game:** a warehouse of shipping containers. Every kill upgrades your gun; first to finish the 8-level ladder wins.
+- **Battle Royale:** up to 20 fighters ride a bus over a green island, land in towns, loot chests and stay inside the shrinking storm. **Players who join from the same party are one team** (green rings and names, no friendly fire, the last team standing wins); everyone else plays alone.
+- **Gun Game:** a warehouse of shipping containers. Every kill upgrades your gun through a **22-level ladder** (pistol, revolver, Uzi, SMG, P90, drum SMG, shotgun, double barrel, auto shotgun, rifle, assault rifle, battle rifle, machine gun, minigun, laser rifle, flamethrower, marksman rifle, sniper, crossbow, railgun, hand cannon, Golden Gun), each with its own look and bullet colour. Seven minutes; the leader wins if nobody finishes.
 - **Wave Survival:** up to 4 players defend a crystal in a dark graveyard town against 15 waves of zombies (walkers, runners, tanks, spitters, a boss every fifth wave). Shop keys: Z ammo, X heal, C better gun, V turret.
-- **Hide and Seek:** two fixed maps (a winter lobby island and a casino hall) chosen at random; they are identical every game. Hiders pick one object from the map (slot machine, snowman...) and cannot switch. Hiders must whistle (F) when their timer says so, or they are highlighted in red. Seekers lose a third of their health for shooting a decoy. Bots only know where a hider is after a whistle or a highlight, and can lose track.
+- **Hide and Seek:** two fixed maps (a winter lobby island and a casino hall) chosen at random; they are identical every game. Hiders pick one object from the map (slot machine, snowman...) and cannot switch. Hiders must whistle (F) when their timer says so, or they are highlighted in red. Seekers lose a third of their health for shooting a decoy. **Seeker bots** do not know where anyone is: when a hider whistles they hunt around the sound for a while, checking the objects there. A hider who does not match the objects around them (no object of the same kind nearby), who moves while a seeker is looking, or who skipped a whistle gets shot; a hider who blends in is only shot on a lucky guess.
 - Bots in the gun modes are deliberately weak (poor aim, slow reactions, half damage, slower fire).
 - Controls in the shooters: WASD to move, mouse to aim and shoot, R reload, E pick up, 1-4 or the wheel to switch guns. On phones the on-screen joystick and buttons are used.
 - Rewards: coins for rounds won, captures, eliminations and the final result.
 
 ## Parties
-In the lobby, open **Party**: create a party (you get a 5-letter code), join with a code, or invite an online friend by name. The party leader picks a game and starts it for everyone. Party members who find a match automatically land in the same room. Parties live on the server and need it to be running.
+In the lobby, open **Party**: create a party (you get a 5-letter code), join with a code, or invite an online friend by name (they get a popup **and** a direct message with a yellow **Join party** button). The leader can tick **Allow friends to join**: friends of the leader then see **🎉 Join party** next to the leader's name in their Friends list. The party leader picks a game and starts it for everyone. Party members who find a match automatically land in the same room. Parties live on the server and need it to be running.
+
+## Direct messages
+Friends can message each other from the Friends page (**💬 Message**). Messages are up to 300 characters, filtered like chat, rate limited (6 per 10 seconds) and blocked for muted players. Unread messages show as a red number on Friends. **The 🎉 Invite** button in a conversation sends a party invite (making a party first if needed).
+Messages are kept on the server (the last 60 per conversation, up to 800 conversations, saved with the accounts) so the **owner and admins can check they are safe**: Admin > **Messages** lists conversations (filter by username) and opens one; every conversation opened is written to the audit log. The message window tells players their messages can be reviewed.
+
+## Wheel of Fortune (owner event)
+Admin > **🎡 Event** > *Start the event* sends **every player who is online** into one room (up to 40): they get a 5-second notice and are moved in, and anyone who connects while it runs joins too. Everyone stands on a white floating island with pillars; the owner sits on a throne on a floating balcony above it, watches, and has the **Spin the wheel** button. The wheel has twelve slots:
+- **Parkour** and **Hardcore Parkour**: everyone races one round on a random stage; the last runner (or everyone the fire catches) is out.
+- **Boss Wave**: everyone gets good guns and fights a wave-5 boss round of Wave Survival (bigger with more players); whoever dies is out.
+- **Hide and Seek**: every player hides, three near-perfect seeker bots hunt for 30 seconds; found players are out, and it repeats until one player is left.
+- **Random Elimination**, **Double Elimination**, **Vote Elimination** (two random players, everyone votes for 15 seconds), **Owner's Choice**, **Revive** (someone who is out comes back), **Immunity** (saved from the next elimination) and **Respin**.
+If a result would knock everyone out, nobody is out. The last player left wins (1,500 coins). Players who are out watch as spectators. The event ends when the owner presses *End event* or leaves; the owner's browser runs it, so keep that tab open.
+
+## Rewards
+The **🎁 Rewards** page (and the home dashboard) has a **daily streak** (50 to 400 coins over seven days, a free crate on day 7), **three daily quests** (play games, eliminations, wins, Parkour rounds, mining, zombies and more; finishing all three gives a free crate), **mystery crates** (300 coins or free, always a cosmetic you do not own: Common 60%, Rare 28%, Epic 10%, Legendary 2%) and a **level road** (every 5 levels: coins and a crate). These live in the player's browser like coins do.
+
+## Looks and cosmetics
+- New character model (a calmer, more normal face; same body shape). The original is kept: Cosmetics > Character > **Classic** switches back on your screen.
+- Every hat was redrawn; there are 13 new items (patterned skins like Camo, Tiger, Carbon, Marble, Lava, Galaxy and Circuit; Beret, Ninja band, Cowboy hat, Viking and Knight helmets, Space helmet), new trails and kill effects.
+- **Trails show for everyone in every mode**, and **kill effects play in every shooter** (and on zombie kills). Players' patterns, trails and kill effects are sent with their profile.
+- A mystery crate and the Cosmetics window open from the home dashboard.
+
+## Full-screen games
+Games take the whole page on every device: the canvas fills the screen, the view follows the screen's shape (a phone held upright sees more of the map instead of a small 16:9 box), and the title bar shrinks to floating **Voice** and **Exit** buttons. On phones the browser goes full screen where it allows it, and tap highlights, text selection and long-press menus are turned off.
 
 ## Survival World
 A big open world with three dimensions: the **Overworld**, the **Nether** and **the End** (`🌍 Survival World` in the Arena door menu). Mine, build, farm, fish, trade with villagers, sail boats, explore structures, survive the monsters that come out at night, and take on the Ender Dragon. It saves, it works alone, with friends or on a server, and it works on phones.
@@ -159,7 +183,7 @@ Effects aimed at other players go through the server (`admin.fx`, `admin.poll`),
 Chess against the bot, or against someone in your lobby: sit at the chess table, pick *Play someone in my lobby*, challenge a player and they get an accept/decline popup. Colors are random, moves are relayed through the lobby, and there is a Resign button.
 
 ## Slow devices
-Parkour (especially Hardcore) has three quality tiers. It steps up by itself when the frame rate stays low: first no decoration, then a lower render resolution with flat backgrounds, light-weight opponents and fewer bot calculations.
+Games always run at full quality: the automatic quality reduction in Parkour has been removed.
 
 ## Reports and moderation
 Players report from the People list (or by clicking a name in global chat) with a reason and note; the recent chat is attached.
@@ -172,7 +196,8 @@ Open `/admin`, paste your `ADMIN_TOKEN`, and you can Dismiss, Mute for an hour, 
     POST /admin/ban?token=T&name=USER&hours=24      ban an account from multiplayer (hours=0 lifts it)
 
 ## Voice chat
-Peer to peer WebRTC; the server only passes the set-up messages, so audio never goes through it. Up to 8 people per room.
+Peer to peer WebRTC; the server only passes the set-up messages, so audio never goes through it. Each player connects to up to 9 others.
+**Voice works in every mode**: the floating **🎤 Voice** button next to Exit in every online game, and the room bar in the Hub and Casino. All voice is **proximity voice**: each voice comes from the speaker's side (left or right) and gets quieter with distance, until it is silent. In **Hide and Seek** hiders only hear hiders and seekers only hear seekers, and your microphone is not sent to the other team at all. In Survival World players in another dimension cannot hear you.
 By default only Google's free **STUN** server is used, which works on many home connections but **not on strict networks (many schools, offices and mobile carriers)**. Those need a **TURN** server to relay the audio.
 
 Easiest free option, Metered:
@@ -186,6 +211,9 @@ Cloudflare's TURN service (`CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`) and your own s
 In a room, the People list shows each voice connection's state, and if one fails you get a message saying why.
 You need to allow the microphone in the browser, and the site must be on https (Render does this for you). Headphones avoid echo.
 
+## Server messages added in V3
+`dm.send`, `dm.invite`, `dm.history`, `dm.read`, `dm.list`; `party.open`, `party.joinfriend`; staff `admin.dms`, `admin.dmlog`; owner `admin.event`, `admin.eventend`; `admin.announce` takes `secs` (5 to 60) and is shown as a banner (`user.announce`). Polls carry who started them. Profiles carry `pat` (skin pattern), `tr` (trail), `kf` (kill effect) and `pt` (a party tag, not the join code). A new room kind `event` holds up to 40 players, and the owner is always its host.
+
 ## Limits the server enforces
 8 connections per address, 400 in all, 200 rooms, 5,000 accounts. Messages over 8 KB are refused; players sending far too many are slowed and then removed.
 Sign-in, email and reset attempts are limited to 10 a minute per address; five wrong passwords lock an account for five minutes.
@@ -197,7 +225,9 @@ Names, colors, positions, RPC names and sizes are validated.
   but real protection means running the games on the server.
 - In the shooters the host has the best connection to the game. Other players predict their own movement and are corrected by the host, but shots are decided on the host.
 - Crumbling platforms in Parkour react to your own runner only.
-- Voice and the Report button are not available inside matches yet, and the party system is still local to one browser.
+- The Report button is not available inside matches yet.
+- Rewards (streaks, quests, crates) are kept in the player's browser like coins, so they can be edited by a determined player.
+- Voice with many people is peer to peer: each player sends their microphone to everyone they can hear, so very large groups use a lot of upload.
 - The Metered and Cloudflare TURN set-ups were tested against stand-in servers, not the real services (Cloudflare's request format is from memory), so check Admin > Overview after you set one.
 - Rooms and global chat history are in memory and reset on restart.
 - There is no two-factor sign-in.
