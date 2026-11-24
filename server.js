@@ -53,9 +53,9 @@ async function refreshIce(){
   }catch(e){console.error('Voice: could not get TURN servers: '+e.message)}
 }
 const GUID='258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},bedwars:{label:'Bedwars',max:16},parkour:{label:'Parkour',max:8}};
+const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},parkour:{label:'Parkour',max:8},tournament:{label:'Tournament',max:8},ctf:{label:'Capture the Flag',max:8},royale:{label:'Battle Royale',max:12}};
 const GCH=['general','lfg','casino'];
-const LIM={maxPayload:8192,rpcMax:7000,perIp:+process.env.PER_IP||8,global:400,msgPerSec:80,chatPerSec:1,chatBurst:3,strikes:60,banMs:10*60*1000,
+const LIM={maxPayload:32768,rpcMax:24000,perIp:+process.env.PER_IP||8,global:400,msgPerSec:80,chatPerSec:1,chatBurst:3,strikes:60,banMs:10*60*1000,
   accounts:5000,authPerMin:+process.env.AUTH_PER_MIN||10,giftMax:5000,giftDay:5000,tokenDays:30,startCoinsMax:20000};
 const BAD=['fuck','shit','bitch','asshole','cunt','nigg','fag'];   /* tiny starter filter, extend as you like */
 const RESERVED=new Set(['admin','administrator','moderator','mod','system','server','excalibur','support','staff','guest','null','undefined']);
@@ -168,7 +168,7 @@ const maskEmail=e=>{if(!e)return'';const[u,d]=e.split('@');return u[0]+'***@'+d}
 const mkCode=()=>String(crypto.randomInt(0,1000000)).padStart(6,'0');
 const hCode=(c,salt)=>sha(c+':'+salt);
 const timingEq=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b)};
-const userView=a=>({name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
+const userView=a=>({ban:a.ban>Date.now()?a.ban:0,name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
 const revokeTokens=a=>{for(const h in db.tokens)if(db.tokens[h].k===a.key)delete db.tokens[h]};
 const kickAccount=(a,reason)=>{const oc=online.get(a.key);if(oc){oc.send({t:'kicked',reason});oc.kill(1000,'signed out')}};
 function ledger(a,text){a.ledger.push({t:Date.now(),text});if(a.ledger.length>50)a.ledger.shift()}
@@ -255,6 +255,9 @@ function enter(c,room,p,req){
 
 /* ---------- accounts, wallet, gifts ---------- */
 function unbind(c){const a=c.acct;if(!a)return;c.acct=null;if(online.get(a.key)===c){online.delete(a.key);presence(a.key)}}
+function banLeft(ms){const m=Math.max(1,Math.ceil(ms/60000));if(m<60)return m+' minute'+(m===1?'':'s');const h=Math.floor(m/60),r=m%60;if(h<48)return h+'h'+(r?' '+r+'m':'');return Math.ceil(h/24)+' days'}
+/* a ban no longer locks the account: you can sign in, but multiplayer rooms refuse you until it runs out */
+function applyBan(a,until){a.ban=until>Date.now()?until:0;touch();const c=online.get(a.key);if(c){if(a.ban&&c.room)leaveRoom(c);c.send({t:'user.ban',ban:a.ban})}}
 function bind(c,a,req,token){
   unbind(c);const old=online.get(a.key);
   if(old&&old!==c){old.send({t:'kicked',reason:'You signed in from another place.'});old.acct=null;online.delete(a.key);old.kill(1000,'signed in elsewhere')}
@@ -270,7 +273,7 @@ async function authMsg(c,m){
   if(m.t==='auth.token'){
     if(!authOk(c.ip))return fail('Too many attempts. Wait a minute.');
     const r=db.tokens[sha(String(m.token||''))];if(!r||r.exp<Date.now())return fail('Please sign in again.');
-    const a=db.accounts[r.k];if(!a)return fail('Please sign in again.');if(a.ban>Date.now())return fail('This account is suspended.');return bind(c,a,m.req,null);
+    const a=db.accounts[r.k];if(!a)return fail('Please sign in again.');return bind(c,a,m.req,null);
   }
   const u=String(m.u||'').trim(),p=String(m.p||'');
   if(!authOk(c.ip))return fail('Too many attempts. Wait a minute.');
@@ -288,7 +291,6 @@ async function authMsg(c,m){
   }
   if(m.t==='auth.login'){
     const a=u.includes('@')?db.accounts[emailIndex.get(key(u))]:db.accounts[key(u)];if(!a)return fail('Wrong username or password.');
-    if(a.ban>Date.now())return fail('This account is suspended.');
     if(a.lock>Date.now())return fail('Too many wrong passwords. Try again in a few minutes.');
     const h=await pwHash(p,Buffer.from(a.salt,'hex')),good=crypto.timingSafeEqual(h,Buffer.from(a.hash,'hex'));
     if(!good){if(++a.fails>=5){a.lock=Date.now()+5*60000;a.fails=0}touch();return fail('Wrong username or password.')}
@@ -469,6 +471,17 @@ const staffLevel=c=>!c.acct?0:staffOf(c.acct)==='owner'?2:(c.acct.admin?1:0);   
 let curActor='';
 function audit(action,target,detail){db.audit.push({t:Date.now(),a:action,x:String(target||''),d:String(detail||''),by:curActor});if(db.audit.length>300)db.audit.splice(0,db.audit.length-300);touch()}
 const pushTo=(a,o)=>{const c=online.get(a.key);if(c)c.send(o)};
+/* ---------- staff tools: live effects and polls ---------- */
+const FXOK=new Set(['speed','fly','size','jackpot','aimbot','spawn','bots','clearbots','rain','clear','gold','god']);
+function cleanFx(f){if(!f||typeof f!=='object'||!FXOK.has(String(f.k)))return null;
+  const o={k:String(f.k)};if(typeof f.v==='number')o.v=num(f.v,0,50);else if(typeof f.v==='boolean')o.v=f.v;else if(f.v!==undefined)o.v=String(f.v).slice(0,12);
+  if(f.dur!==undefined)o.dur=num(f.dur,0,3600);if(f.n!==undefined)o.n=Math.floor(num(f.n,0,60));return o}
+let poll=null;
+function pollCounts(){let a=0,b=0;if(poll)for(const x of poll.votes.values())x==='a'?a++:b++;return{a,b}}
+function endPoll(){if(!poll)return;const p=poll;poll=null;clearTimeout(p.timer);clearInterval(p.iv);const n=((x)=>({a:x.a,b:x.b}))(pollCountsOf(p));
+  const w=n.a>n.b?'a':n.b>n.a?'b':'tie';for(const x of conns.values())x.send({t:'user.pollend',id:p.id,counts:n,winner:w});
+  const eff=w==='a'?p.effA:w==='b'?p.effB:null;if(eff)for(const x of conns.values())x.send({t:'user.fx',fx:{...eff,by:'poll'}})}
+function pollCountsOf(p){let a=0,b=0;for(const x of p.votes.values())x==='a'?a++:b++;return{a,b}}
 function adminMsg(c,m){
   const lvl=staffLevel(c);if(!lvl)return;   /* anyone who is not staff is ignored without an answer */
   curActor=c.acct.name;
@@ -491,10 +504,20 @@ function adminMsg(c,m){
     case'admin.unlockall':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');a.owned=cosList([...(a.owned||[]),...(Array.isArray(m.ids)?m.ids:[])]);audit('unlock cosmetics',a.name,a.owned.length+' items');touch();pushTo(a,{t:'acct.push',owned:a.owned});return ok({owned:a.owned.length})}
     case'admin.ban':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
       const h=+m.hours;if(!(h>=0)||h>87600)return no('Hours must be between 0 (lifts a ban) and 87600.');
-      a.ban=h>0?Date.now()+h*3600e3:0;if(h>0){revokeTokens(a);kickAccount(a,'Your account has been suspended.')}audit(h>0?'ban':'unban',a.name,h>0?h+'h '+clean(m.reason,80):'');touch();return ok({})}
+      applyBan(a,h>0?Date.now()+h*3600e3:0);audit(h>0?'ban':'unban',a.name,h>0?h+'h '+clean(m.reason,80):'');touch();return ok({})}
     case'admin.mute':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
       const mi=+m.minutes;if(!(mi>=0)||mi>525600)return no('Minutes must be between 0 (unmute) and 525600.');
       a.muted=mi>0?Date.now()+mi*60000:0;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted;audit(mi>0?'mute':'unmute',a.name,mi>0?mi+' min':'');touch();return ok({})}
+    case'admin.fx':{const f=cleanFx(m.fx);if(!f)return no('Unknown effect.');if(f.k==='jackpot'&&lvl<2)return no('Only the owner can set jackpots.');
+      const names=new Set((Array.isArray(m.names)?m.names:[]).slice(0,60).map(x=>key(x))),list=m.scope==='list';let n=0;
+      for(const x of conns.values()){if(list){const a1=x.p?key(x.p.name):'',a2=x.acct?key(x.acct.name):'';if(!names.has(a1)&&!names.has(a2))continue}x.send({t:'user.fx',fx:{...f,by:c.acct.name}});n++}
+      audit('effect',list?'whitelist':'everyone',f.k+(f.v!==undefined?' '+f.v:''));return ok({n})}
+    case'admin.poll':{if(poll)return no('A poll is already running.');const q=clean(m.q,90),a=clean(m.a,28),b=clean(m.b,28);if(!q||!a||!b)return no('Fill in the question and both options.');
+      const secs=Math.floor(num(m.secs||30,10,180));
+      poll={id:crypto.randomBytes(3).toString('hex'),q,a,b,end:Date.now()+secs*1000,votes:new Map(),effA:cleanFx(m.effA),effB:cleanFx(m.effB)};
+      poll.timer=setTimeout(endPoll,secs*1000);poll.iv=setInterval(()=>{const k=pollCounts();for(const x of conns.values())x.send({t:'user.pollcount',id:poll&&poll.id,counts:k})},1000);
+      for(const x of conns.values())x.send({t:'user.poll',poll:{id:poll.id,q,a,b,secs,left:secs}});audit('poll',q,a+' / '+b);return ok({})}
+    case'admin.endpoll':{endPoll();return ok({})}
     case'admin.kick':{const t=conns.get(String(m.id||''));if(!t)return no('That player already left.');if(t.acct&&(t.acct.key===OWNER_KEY||(lvl<2&&t.acct.admin)))return no(t.acct.key===OWNER_KEY?'The owner cannot be kicked.':'Admins cannot kick other admins.');
       if(m.ban)bans.set(t.ip,Date.now()+LIM.banMs);audit('kick',t.p?t.p.name:t.id,m.ban?'address blocked 10 min':'');t.kill(1008,'removed');return ok({})}
     case'admin.delmsg':{const ch=String(m.ch||'');if(!GCH.includes(ch))return no('Unknown channel.');const i=ghist[ch].findIndex(x=>x.ts===m.ts&&x.from===m.from);if(i<0)return no('That message is already gone.');
@@ -504,7 +527,7 @@ function adminMsg(c,m){
     case'admin.reports':return ok({reports:db.reports.filter(r=>m.all||r.open).slice(-100).reverse()});
     case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)&&!(lvl<2&&a0.admin)?a0:null;
       if(m.action==='mute'&&a){a.muted=Date.now()+60*60000;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted}
-      if(m.action==='ban'&&a){a.ban=Date.now()+24*3600e3;revokeTokens(a);kickAccount(a,'Your account has been suspended.')}
+      if(m.action==='ban'&&a){applyBan(a,Date.now()+24*3600e3)}
       r.open=false;r.action=String(m.action||'dismiss');audit('report '+r.action,r.target,r.reason);touch();return ok({})}
     case'admin.setadmin':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('The owner is already the owner.');
       a.admin=!!m.on;audit(a.admin?'make admin':'remove admin',a.name,'');touch();pushTo(a,{t:'user.update',user:userView(a)});return ok({admin:a.admin})}
@@ -518,6 +541,7 @@ async function handle(c,m){
   if(t.startsWith('auth.'))return authMsg(c,m);
   if(t==='wallet.sync')return walletSync(c,m);
   if(t==='gift')return gift(c,m);
+  if(t==='poll.vote'){if(poll&&Date.now()<poll.end&&(m.c==='a'||m.c==='b'))poll.votes.set(c.acct?'a:'+c.acct.key:'c:'+c.id,m.c);return}
   if(t.startsWith('admin.'))return adminMsg(c,m);
   if(t.startsWith('email.'))return emailMsg(c,m);
   if(t.startsWith('reset.'))return resetMsg(c,m);
@@ -525,6 +549,7 @@ async function handle(c,m){
   if(t.startsWith('friend.'))return friendMsg(c,m);
   if(t.startsWith('g.'))return globalMsg(c,m);
   if(t==='who'){c.send({t:'rooms',rooms:[...rooms.values()].filter(r=>!r.priv&&!r.locked).map(pub)});return}
+  if((t==='join'||t==='quick'||t==='joincode')&&c.acct&&c.acct.ban>Date.now())return c.send({t:'deny',room:m.room,req:m.req,ban:c.acct.ban,err:'You are banned from multiplayer for '+banLeft(c.acct.ban-Date.now())+'.'});
   if(t==='join'){
     const id=String(m.room||'');if(!/^r[a-z0-9]{4,12}$/.test(id))return;
     let room=rooms.get(id);
@@ -556,12 +581,13 @@ async function handle(c,m){
   if(t==='leave'){leaveRoom(c);return}
   if(t==='lock'){if(room.master===c)room.locked=true;return}   /* the master closes the room when a match starts */
   if(t==='state'&&m.s){
-    const s=m.s;broadcast(room,{t:'state',room:room.id,from:c.id,s:{x:Math.round(num(s.x,-200,2600)),y:Math.round(num(s.y,-200,2600)),dir:Math.round(num(s.dir,0,3)),mv:!!s.mv,wk:+num(s.wk,0,100).toFixed(2)}},c);return;
+    const s=m.s;broadcast(room,{t:'state',room:room.id,from:c.id,s:{x:Math.round(num(s.x,-200,2600)),y:Math.round(num(s.y,-200,2600)),dir:Math.round(num(s.dir,0,3)),mv:!!s.mv,wk:+num(s.wk,0,100).toFixed(2),sz:+num(s.sz||1,0.3,4).toFixed(2)}},c);return;
   }
   if(t==='chat'){
     const now=Date.now();c.ctok=Math.min(LIM.chatBurst,c.ctok+(now-c.clast)/1000*LIM.chatPerSec);c.clast=now;
     if(c.ctok<1){c.send({t:'notice',text:'You are chatting too fast.'});return}
     if(c.muteUntil>now||(c.acct&&c.acct.muted>now)){c.send({t:'notice',text:'You are muted.'});return}
+    if(c.acct&&c.acct.ban>now){c.send({t:'notice',text:'You are banned from chat for '+banLeft(c.acct.ban-now)+'.'});return}
     const text=sChat(m.text);if(!text)return;c.ctok--;
     room.chat.push({from:c.p?c.p.name:'?',text,ts:now});if(room.chat.length>30)room.chat.shift();
     broadcast(room,{t:'chat',room:room.id,from:c.id,text},c);return;
@@ -607,10 +633,10 @@ const server=http.createServer((req,res)=>{
     if(p==='/admin/report'&&req.method==='POST'){
       const r=db.reports.find(x=>x.id===u.searchParams.get('id'));if(!r){res.writeHead(404);return res.end('none')}
       const act=u.searchParams.get('action'),a0=db.accounts[r.tk],a=a0&&a0.key!==OWNER_KEY?a0:null;
-      if(act==='mute'&&a)a.muted=Date.now()+60*60000;if(act==='ban'&&a){a.ban=Date.now()+24*3600e3;revokeTokens(a);kickAccount(a,'Your account has been suspended.')}
+      if(act==='mute'&&a)a.muted=Date.now()+60*60000;if(act==='ban'&&a){applyBan(a,Date.now()+24*3600e3)}
       r.open=false;r.action=act;touch();res.writeHead(200);return res.end('ok')}
     if(p==='/admin/ban'&&req.method==='POST'){const a=db.accounts[key(u.searchParams.get('name'))];if(!a||a.key===OWNER_KEY){res.writeHead(a?403:404);return res.end('no')}
-      const h=+u.searchParams.get('hours')||0;a.ban=h>0?Date.now()+h*3600e3:0;if(h>0){revokeTokens(a);kickAccount(a,'Your account has been suspended.')}touch();res.writeHead(200);return res.end(h>0?'banned':'unbanned')}
+      const h=+u.searchParams.get('hours')||0;applyBan(a,h>0?Date.now()+h*3600e3:0);touch();res.writeHead(200);return res.end(h>0?'banned':'unbanned')}
     if(p==='/admin/outbox'&&mailMode==='log'){res.writeHead(200,{'Content-Type':'application/json'});return res.end(JSON.stringify(outbox))}
     if(p==='/admin/kick'&&req.method==='POST'){const c=conns.get(u.searchParams.get('id')||'');if(!c){res.writeHead(404);return res.end('none')}bans.set(c.ip,Date.now()+LIM.banMs);c.kill(1008,'removed');res.writeHead(200);return res.end('kicked')}
     if(p==='/admin/mute'&&req.method==='POST'){const a=db.accounts[key(u.searchParams.get('name'))];if(!a){res.writeHead(404);return res.end('none')}a.muted=Date.now()+Math.max(0,+u.searchParams.get('minutes')||10)*60000;touch();res.writeHead(200);return res.end('muted')}
@@ -639,6 +665,7 @@ server.on('upgrade',(req,socket)=>{
   const c=new Conn(socket,ip);conns.set(c.id,c);perIp.set(ip,(perIp.get(ip)||0)+1);
   if((METERED_KEY||CF_TOKEN)&&Date.now()-iceCache.at>12*3600e3)refreshIce();
   c.send({t:'welcome',id:c.id,ice:iceCache.list,channels:GCH,limits:{giftMax:LIM.giftMax,giftDay:LIM.giftDay}});
+  if(poll){const left=Math.max(1,Math.ceil((poll.end-Date.now())/1000));c.send({t:'user.poll',poll:{id:poll.id,q:poll.q,a:poll.a,b:poll.b,secs:left,left}})}
 });
 setInterval(()=>{for(const c of conns.values()){if(!c.pong){c.kill(1001,'timeout');continue}c.pong=false;try{c.s.write(frame(9,Buffer.alloc(0)))}catch(e){}}},25000).unref();
 setInterval(()=>{const now=Date.now();for(const[ip,t]of bans)if(t<now)bans.delete(ip)},60000).unref();

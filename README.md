@@ -2,7 +2,7 @@
 
 One small Node program (no dependencies) that serves the game page and runs everything online:
 accounts, wallets and gifts, friends, global chat, rooms, voice signalling, reports and moderation,
-and the host-run multiplayer for Bedwars and Parkour.
+and the host-run multiplayer for Parkour, Tournament, Capture the Flag and Battle Royale.
 
     node server.js          # then open http://localhost:8080 in two browsers
 
@@ -82,15 +82,15 @@ Without Supabase, accounts are kept in `accounts.json`, which only survives on a
 Codes work for 15 minutes and 5 tries. A reset signs out every session and emails a "your password was changed" notice. The reset form gives the same answer
 whether or not the account exists, so it cannot be used to look up usernames. If no email provider is configured the Account page says so.
 
-## Multiplayer Bedwars and Parkour
-Both open an online intermission (up to 16 players for Bedwars, 8 for Parkour). The room's **master client** is the host: the first player in, handed to the longest-standing player
-if they leave. When the host starts the match, the room locks, empty slots fill with bots, and:
-- **Bedwars:** the host's browser runs the whole game. Everyone else sends inputs and draws snapshots (about 15 a second).
-- **Parkour:** everyone moves their own runner; the host runs the bots, the clock, finish places and eliminations.
-- A player who leaves is replaced by a bot. If the host leaves, everyone gets a "match ended" screen and a few coins.
-- The host must keep their tab open and visible; a hidden tab pauses the match for everybody.
-You can build your own games on the same pieces: `session.rpc(name, args, target)` (`'others'`, `'all'`, `'master'` or a player id), `session.on(name, fn)`,
-`session.isMaster()`, `session.onMaster`, `session.onJoin`, `session.onLeave`, and a `lock` message from the master that closes the room.
+## Multiplayer games
+Every game opens an online intermission (up to 8 players for Parkour, Tournament and Capture the Flag, 12 for Battle Royale). The room's **master client** is the host: the first player in, handed over when they leave. The host's browser runs the whole game and sends snapshots (about 20 a second); everyone else sends their inputs and draws what the host says. If the host leaves, the match ends. Empty spots are filled with bots.
+
+- **Parkour:** each player moves their own runner; the host runs the bots, the clock and the results.
+- **Tournament:** a bracket of eight. Each round two fighters meet in a big sandy coliseum full of pillars and cover. Everyone starts with a pistol and finds guns, ammo, health and shields on the map. A storm closes in so every duel ends. Matches between two bots play at about 2.4x speed. Everyone else spectates (click or Tab to switch fighter).
+- **Capture the Flag:** Red vs Blue on a floating island. Take the enemy flag to your own base while yours is at home. First to three, or the best score after seven minutes. You respawn after four seconds.
+- **Battle Royale:** up to 20 fighters ride a bus over a large island, jump out (Space or click), land in towns, open chests for guns and ammo and stay inside the shrinking storm. Last one standing wins.
+- Controls in the three shooters: WASD to move, mouse to aim and shoot, R reload, E pick up a gun or open a chest, 1-4 or the wheel to switch guns. Ammo, health and shields are picked up by walking over them. Houses in Battle Royale have roofs that fade away when you walk inside.
+- Rewards: coins for rounds won, captures, eliminations and the final result.
 
 ## Parkour: Classic and Hardcore
 Both modes are in the Parkour lobby (online, the host picks; offline, you pick). The choice is remembered.
@@ -106,15 +106,34 @@ Both modes are in the Parkour lobby (online, the host picks; offline, you pick).
 Hardcore maps were tuned with simulated bot runs, and the later rounds get steadily harder (round 20 is meant to be brutal).
 Very rarely a generated stretch is nastier than it should be; reporting the round number helps.
 
+## Bans
+A ban no longer locks the account. A banned player can still sign in, play offline and keep their coins and cosmetics, but every multiplayer room (lobby, casino, matches) and room chat refuse them until the ban runs out. They see a red banner with the time left, and it disappears by itself when the ban ends or an owner/admin lifts it. Banning someone who is online sends them straight back to the title screen.
+
+## Staff tools inside games
+Owner and admin accounts get a 🛠 button in every game. Pick who an action applies to (**Me**, **Everyone**, or your **Whitelist**) and for how long, then use:
+- **Mods:** speed (x1-x5), fly, size (other players see it), aimbot (in the shooters), gold rush (items pay 5x), and a reset. **Casino jackpot** (owner only) makes slots, roulette, blackjack and Texas Hold'em always win.
+- **Events:** rain presents and diamonds, gold rush, speed day, fly party, giant day, tiny day, bot party.
+- **Items:** hold the mouse in the lobby to spawn diamonds and presents that fly to you; spawn or remove roaming bots.
+- **Poll:** write a question and two options, choose what happens if A or B wins, and everyone sees a voting machine pop up in the lobby with live counts. The winning outcome is applied to everyone.
+- **Players:** kick players in your room, and manage the whitelist.
+
+Effects aimed at other players go through the server (`admin.fx`, `admin.poll`), which checks that the sender is staff. Admins can do everything except the casino jackpot.
+
+## Chess
+Chess against the bot, or against someone in your lobby: sit at the chess table, pick *Play someone in my lobby*, challenge a player and they get an accept/decline popup. Colors are random, moves are relayed through the lobby, and there is a Resign button.
+
+## Low-end devices
+Parkour (especially Hardcore) has three quality tiers. It steps up by itself when the frame rate stays low: first no decoration, then a lower render resolution with flat backgrounds, light-weight opponents and fewer bot calculations. Very weak devices start in the middle tier, and the Parkour lobby has a *Low-end device mode* checkbox to force the lowest tier.
+
 ## Reports and moderation
 Players report from the People list (or by clicking a name in global chat) with a reason and note; the recent chat is attached.
 Three different reporters in an hour mute a player for 15 minutes automatically. Players can also Block someone, which hides their chat and mutes their voice on that device.
-Open `/admin`, paste your `ADMIN_TOKEN`, and you can Dismiss, Mute for an hour, or Suspend for 24 hours. Other admin endpoints:
+Open `/admin`, paste your `ADMIN_TOKEN`, and you can Dismiss, Mute for an hour, or Ban from multiplayer for 24 hours. Other admin endpoints:
 
     GET  /admin/status?token=T                      accounts, who is online, rooms and their masters
     POST /admin/kick?token=T&id=PLAYER_ID           disconnect and block an address for 10 minutes
     POST /admin/mute?token=T&name=USER&minutes=10   silence an account
-    POST /admin/ban?token=T&name=USER&hours=24      suspend an account (hours=0 lifts it)
+    POST /admin/ban?token=T&name=USER&hours=24      ban an account from multiplayer (hours=0 lifts it)
 
 ## Voice chat
 Peer to peer WebRTC; the server only passes the set-up messages, so audio never goes through it. Up to 8 people per room.
@@ -140,9 +159,9 @@ Names, colors, positions, RPC names and sizes are validated.
 ## Honest limits
 - The games run in players' browsers, so a determined player can change their own coins. The server caps how fast a balance can rise and checks gifts against its own copy,
   but real protection means running the games on the server.
-- In Bedwars the host has the best connection to the game; others feel their network delay, and there is no movement prediction.
+- In the shooters the host has the best connection to the game. Other players predict their own movement and are corrected by the host, but shots are decided on the host.
 - Crumbling platforms in Parkour react to your own runner only.
-- Voice and the Report button are not available inside Bedwars and Parkour matches yet, and the party system is still local to one browser.
+- Voice and the Report button are not available inside matches yet, and the party system is still local to one browser.
 - The Metered and Cloudflare TURN set-ups were tested against stand-in servers, not the real services (Cloudflare's request format is from memory), so check Admin > Overview after you set one.
 - Rooms and global chat history are in memory and reset on restart.
 - There is no two-factor sign-in.
