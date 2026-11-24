@@ -53,7 +53,7 @@ async function refreshIce(){
   }catch(e){console.error('Voice: could not get TURN servers: '+e.message)}
 }
 const GUID='258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},parkour:{label:'Parkour',max:8},tournament:{label:'Tournament',max:8},ctf:{label:'Capture the Flag',max:8},royale:{label:'Battle Royale',max:12}};
+const KINDS={hub:{label:'Main Hub',max:16},casino:{label:'Casino',max:12},parkour:{label:'Parkour',max:8},tournament:{label:'Tournament',max:8},ctf:{label:'Capture the Flag',max:8},royale:{label:'Battle Royale',max:12},survival:{label:'Wave Survival',max:4},gungame:{label:'Gun Game',max:8},hideseek:{label:'Hide and Seek',max:8},world:{label:'Survival World',max:8}};
 const GCH=['general','lfg','casino'];
 const LIM={maxPayload:32768,rpcMax:24000,perIp:+process.env.PER_IP||8,global:400,msgPerSec:80,chatPerSec:1,chatBurst:3,strikes:60,banMs:10*60*1000,
   accounts:5000,authPerMin:+process.env.AUTH_PER_MIN||10,giftMax:5000,giftDay:5000,tokenDays:30,startCoinsMax:20000};
@@ -108,7 +108,7 @@ async function loadDb(){
       await new Promise(r=>setTimeout(r,2000));
     }
   }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];
   /* accounts made by older versions may be missing fields: fill them in so nothing downstream ever sees undefined */
   for(const a of Object.values(db.accounts)){
     if(!Array.isArray(a.owned)||!a.owned.length)a.owned=cosList(a.owned);
@@ -202,7 +202,7 @@ class Conn{
   }
   send(o){if(this.alive)try{this.s.write(frame(1,Buffer.from(JSON.stringify(o))))}catch(e){}}
   kill(c,reason){if(!this.alive)return;try{const r=Buffer.from(String(reason||'').slice(0,100));const b=Buffer.alloc(2+r.length);b.writeUInt16BE(c||1000,0);r.copy(b,2);this.s.write(frame(8,b))}catch(e){}try{this.s.end()}catch(e){}this.drop()}
-  drop(){if(!this.alive)return;this.alive=false;leaveRoom(this);unbind(this);conns.delete(this.id);perIp.set(this.ip,Math.max(0,(perIp.get(this.ip)||1)-1))}
+  drop(){if(!this.alive)return;this.alive=false;leaveRoom(this);partyLeave(this);unbind(this);conns.delete(this.id);perIp.set(this.ip,Math.max(0,(perIp.get(this.ip)||1)-1))}
   data(d){
     this.buf=Buffer.concat([this.buf,d]);
     for(;;){
@@ -247,6 +247,7 @@ function enter(c,room,p,req){
   const others=[...room.members].map(x=>x.p);
   room.members.add(c);c.room=room.id;if(!room.master)room.master=c;
   const meta=room.priv?{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:true,code:room.code}:{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:false};
+  if(room.wseed!=null){meta.wseed=room.wseed;meta.srv=room.srv||''}
   c.send({t:'roster',room:room.id,req,meta,players:others,master:room.master.id});
   broadcast(room,{t:'join',room:room.id,p:c.p},c);
   if(c.acct)presence(c.acct.key);
@@ -471,6 +472,66 @@ const staffLevel=c=>!c.acct?0:staffOf(c.acct)==='owner'?2:(c.acct.admin?1:0);   
 let curActor='';
 function audit(action,target,detail){db.audit.push({t:Date.now(),a:action,x:String(target||''),d:String(detail||''),by:curActor});if(db.audit.length>300)db.audit.splice(0,db.audit.length-300);touch()}
 const pushTo=(a,o)=>{const c=online.get(a.key);if(c)c.send(o)};
+/* ---------- Survival World: hosted worlds, the server list and staff review ---------- */
+const WORLD_MAX=150000;
+function newWorldRoom(o){const id='r'+crypto.randomBytes(5).toString('hex'),room={id,kind:'world',name:o.name,max:8,priv:!!o.priv,code:code(),members:new Set(),master:null,chat:[],wseed:o.seed,srv:o.srv||'',rand:!!o.rand};rooms.set(id,room);return room}
+const worldPub=w=>{const r=[...rooms.values()].find(x=>x.srv===w.id);return{id:w.id,name:w.name,desc:w.desc,owner:w.owner,seed:w.seed,count:r?r.members.size:0,max:8,online:!!r}};
+function worldMsg(c,m,t){
+  const a=c.acct,res=(ok,msg)=>c.send({t:'world.res',ok,msg});
+  if(t==='world.list')return c.send({t:'world.servers',list:db.worlds.filter(w=>w.status==='live').map(worldPub)});
+  if(t==='world.mine')return c.send({t:'world.mine',list:a?db.worlds.filter(w=>w.ownerKey===a.key).map(w=>({id:w.id,name:w.name,status:w.status,note:w.note||''})):[]});
+  if(t==='world.request'){
+    if(!a)return res(false,'Sign in to request a server.');
+    const name=clean(m.name,24),desc=clean(m.desc,120);
+    if(name.length<3)return res(false,'Give your server a name (at least 3 letters).');
+    const low=(name+' '+desc).toLowerCase();if(BAD.some(b=>low.includes(b)))return res(false,'Please keep the name and description friendly.');
+    if(db.worlds.filter(w=>w.ownerKey===a.key&&w.status!=='denied').length>=3)return res(false,'You can have up to 3 servers (pending or live). Remove one first.');
+    if(db.worlds.filter(w=>w.status==='pending').length>=60)return res(false,'Too many requests are waiting. Try again later.');
+    db.worlds.push({id:'w'+crypto.randomBytes(4).toString('hex'),name,desc,owner:a.name,ownerKey:a.key,seed:crypto.randomInt(1,2e9),status:'pending',note:'',created:Date.now(),data:''});touch();
+    res(true,'Request sent! An admin will review it. Check "My requests" for the answer.');return worldMsg(c,m,'world.mine');
+  }
+  if(t==='world.remove'){const w=db.worlds.find(x=>x.id===String(m.id||''));if(!w||!a)return;if(w.ownerKey!==a.key&&!staffOf(a))return;db.worlds.splice(db.worlds.indexOf(w),1);touch();res(true,'Server removed.');return worldMsg(c,m,'world.mine')}
+  if(t==='world.pending'){if(!staffOf(a))return;return c.send({t:'world.pending',list:db.worlds.filter(w=>w.status==='pending').map(w=>({id:w.id,name:w.name,desc:w.desc,owner:w.owner,created:w.created}))})}
+  if(t==='world.review'){
+    if(!staffOf(a))return;const w=db.worlds.find(x=>x.id===String(m.id||'')&&x.status==='pending');if(!w)return res(false,'That request is already handled.');
+    const yes=!!m.ok;w.status=yes?'live':'denied';w.note=clean(m.note,80);curActor=a.name;audit(yes?'world approved':'world denied',w.name,w.owner);touch();
+    const oc=online.get(w.ownerKey);if(oc)oc.send({t:'notice',text:yes?'Your server "'+w.name+'" was approved and is now in the server list!':'Your server request "'+w.name+'" was declined'+(w.note?': '+w.note:'.')});
+    res(true,yes?'Approved.':'Declined.');return worldMsg(c,m,'world.pending');
+  }
+  if(c.acct&&c.acct.ban>Date.now()&&/^world\.(host|random|start)$/.test(t))return c.send({t:'deny',req:m.req,ban:c.acct.ban,err:'You are banned from multiplayer for '+banLeft(c.acct.ban-Date.now())+'.'});
+  if(t==='world.host'){
+    if(rooms.size>=200)return c.send({t:'deny',req:m.req,err:'The server is busy. Try again soon.'});
+    const rand=!!m.rand,room=newWorldRoom({name:clean(m.name,24)||'World',seed:Math.floor(num(m.seed,1,2e9))||1,priv:!rand,rand});enter(c,room,m.p,m.req);return;
+  }
+  if(t==='world.random'){
+    const r=[...rooms.values()].filter(x=>x.kind==='world'&&x.rand&&open(x)).sort((p,q)=>q.members.size-p.members.size)[0];
+    if(!r)return c.send({t:'deny',req:m.req,err:'No public worlds are open right now. Host one with "random joins" on, or try again soon.'});
+    enter(c,r,m.p,m.req);return;
+  }
+  if(t==='world.start'){
+    const w=db.worlds.find(x=>x.id===String(m.id||'')&&x.status==='live');if(!w)return c.send({t:'deny',req:m.req,err:'That server is not available.'});
+    let r=[...rooms.values()].find(x=>x.srv===w.id);
+    if(!r){if(rooms.size>=200)return c.send({t:'deny',req:m.req,err:'The server is busy. Try again soon.'});r=newWorldRoom({name:w.name,seed:w.seed,srv:w.id,priv:false})}
+    enter(c,r,m.p,m.req);return;
+  }
+  const room=c.room&&rooms.get(c.room);if(!room||room.kind!=='world'||!room.srv)return;
+  const w=db.worlds.find(x=>x.id===room.srv);if(!w)return;
+  if(t==='world.get'){if(room.master!==c)return;return c.send({t:'world.data',id:w.id,data:w.data||''})}
+  if(t==='world.save'){
+    if(room.master!==c)return;const n=Math.floor(num(m.n,1,12)),i=Math.floor(num(m.i,0,11)),rid=clean(m.rid,10),d=typeof m.d==='string'?m.d.slice(0,20000):'';
+    if(!c.wbuf||c.wbuf.rid!==rid)c.wbuf={rid,n,parts:[],at:Date.now()};c.wbuf.parts[i]=d;
+    if(c.wbuf.parts.filter(x=>x!=null).length===n){const all=c.wbuf.parts.join('');c.wbuf=null;if(all.length>WORLD_MAX)return c.send({t:'notice',text:'This world is too big to save on the server.'});
+      try{const o=JSON.parse(all);if(!o||o.seed!==w.seed||!Array.isArray(o.diff))return;w.data=all;touch()}catch(e){}}
+    return;
+  }
+}
+/* ---------- parties: a group that plays together ---------- */
+const parties=new Map();
+function pcode(){let s;do{s=Array.from({length:5},()=>'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[crypto.randomInt(31)]).join('')}while(parties.has(s));return s}
+const partyView=pa=>({code:pa.code,leader:pa.leader,members:[...pa.members].map(([id,mm])=>({id,name:mm.name}))});
+function partySend(pa){const vw=partyView(pa);for(const id of pa.members.keys()){const x=conns.get(id);if(x)x.send({t:'user.party',party:vw})}}
+function partyLeave(c){const pa=c.party&&parties.get(c.party);c.party=null;if(!pa)return;pa.members.delete(c.id);try{c.send({t:'user.party',party:null})}catch(e){}
+  if(!pa.members.size){parties.delete(pa.code);return}if(pa.leader===c.id)pa.leader=pa.members.keys().next().value;partySend(pa)}
 /* ---------- staff tools: live effects and polls ---------- */
 const FXOK=new Set(['speed','fly','size','jackpot','aimbot','spawn','bots','clearbots','rain','clear','gold','god']);
 function cleanFx(f){if(!f||typeof f!=='object'||!FXOK.has(String(f.k)))return null;
@@ -549,6 +610,14 @@ async function handle(c,m){
   if(t.startsWith('friend.'))return friendMsg(c,m);
   if(t.startsWith('g.'))return globalMsg(c,m);
   if(t==='who'){c.send({t:'rooms',rooms:[...rooms.values()].filter(r=>!r.priv&&!r.locked).map(pub)});return}
+  if(t.startsWith('world.')){worldMsg(c,m,t);return}
+  if(t==='party.create'){partyLeave(c);const pa={code:pcode(),leader:c.id,members:new Map([[c.id,{name:clean(m.name,20)||'Player'}]]),room:null};parties.set(pa.code,pa);c.party=pa.code;partySend(pa);return}
+  if(t==='party.join'){const pa=parties.get(clean(m.code,5).toUpperCase());if(!pa)return c.send({t:'notice',text:'There is no party with that code.'});if(pa.members.has(c.id))return;if(pa.members.size>=8)return c.send({t:'notice',text:'That party is full.'});partyLeave(c);pa.members.set(c.id,{name:clean(m.name,20)||'Player'});c.party=pa.code;partySend(pa);return}
+  if(t==='party.leave'){partyLeave(c);return}
+  if(t==='party.invite'){const pa=c.party&&parties.get(c.party);if(!pa||!pa.members.has(c.id))return;const nm=key(clean(m.target,24));
+    for(const x of conns.values()){if(x===c||x.party===pa.code)continue;const n1=x.acct?key(x.acct.name):'',n2=x.p?key(x.p.name):'';if(nm&&(n1===nm||n2===nm)){x.send({t:'user.partyinv',from:pa.members.get(c.id).name,code:pa.code});return c.send({t:'notice',text:'Invite sent.'})}}
+    return c.send({t:'notice',text:'That player is not online.'})}
+  if(t==='party.go'){const pa=c.party&&parties.get(c.party);if(!pa||pa.leader!==c.id)return;const g=clean(m.game,24);pa.room=null;for(const id of pa.members.keys()){const x=conns.get(id);if(x)x.send({t:'user.partygo',game:g,code:pa.code,leader:pa.members.get(c.id).name})}return}
   if((t==='join'||t==='quick'||t==='joincode')&&c.acct&&c.acct.ban>Date.now())return c.send({t:'deny',room:m.room,req:m.req,ban:c.acct.ban,err:'You are banned from multiplayer for '+banLeft(c.acct.ban-Date.now())+'.'});
   if(t==='join'){
     const id=String(m.room||'');if(!/^r[a-z0-9]{4,12}$/.test(id))return;
@@ -564,13 +633,15 @@ async function handle(c,m){
   }
   if(t==='quick'){   /* atomic: the server picks the fullest open room, or opens a new one, so two people arriving together always meet */
     const K=KINDS[m.kind];if(!K)return;
-    let room=[...rooms.values()].filter(r=>r.kind===m.kind&&open(r)).sort((a,b)=>b.members.size-a.members.size)[0];
+    const pa=m.party?parties.get(clean(m.party,5).toUpperCase()):null;let room=null;   /* a party always lands in the same room */
+    if(pa&&pa.members.has(c.id)&&pa.room){const pr=rooms.get(pa.room);if(pr&&pr.kind===m.kind&&open(pr))room=pr}
+    if(!room)room=[...rooms.values()].filter(r=>r.kind===m.kind&&open(r)).sort((a,b)=>b.members.size-a.members.size)[0];
     if(!room){
       if(rooms.size>=200)return c.send({t:'deny',req:m.req,err:'The server is busy. Try again soon.'});
       const used=new Set([...rooms.values()].map(r=>r.name));let n=1;while(used.has(K.label+' '+n))n++;
       room={id:'r'+crypto.randomBytes(5).toString('hex'),kind:m.kind,name:K.label+' '+n,max:K.max,priv:false,code:code(),members:new Set(),master:null,chat:[]};rooms.set(room.id,room);
     }
-    enter(c,room,m.p,m.req);return;
+    if(enter(c,room,m.p,m.req)!==false&&pa&&pa.members.has(c.id))pa.room=room.id;return;
   }
   if(t==='joincode'){
     const cd=clean(m.code,5).toUpperCase(),room=[...rooms.values()].find(r=>r.code===cd);
