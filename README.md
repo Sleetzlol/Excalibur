@@ -2,7 +2,7 @@
 
 One small Node program (no dependencies) that serves the game page and runs everything online:
 accounts, wallets and gifts, friends, global chat, rooms, voice signalling, reports and moderation,
-and the host-run multiplayer for Parkour, Tournament, Capture the Flag and Battle Royale.
+the parties, Survival World servers and the host-run multiplayer for Parkour and the shooter modes.
 
     node server.js          # then open http://localhost:8080 in two browsers
 
@@ -83,14 +83,50 @@ Codes work for 15 minutes and 5 tries. A reset signs out every session and email
 whether or not the account exists, so it cannot be used to look up usernames. If no email provider is configured the Account page says so.
 
 ## Multiplayer games
-Every game opens an online intermission (up to 8 players for Parkour, Tournament and Capture the Flag, 12 for Battle Royale). The room's **master client** is the host: the first player in, handed over when they leave. The host's browser runs the whole game and sends snapshots (about 20 a second); everyone else sends their inputs and draws what the host says. If the host leaves, the match ends. Empty spots are filled with bots.
+Every game opens an online intermission (up to 8 players, 12 for Battle Royale, 4 for Wave Survival). The room's **master client** is the host: the first player in. The host's browser runs the whole game and sends snapshots (about 20 a second); everyone else sends their inputs and draws what the host says. **If the host leaves, the game does not end:** the server hands the host role to the next player, whose browser takes over the bots, the clock and the world from what it was already showing. Empty slots are filled with bots when the timer runs out.
 
 - **Parkour:** each player moves their own runner; the host runs the bots, the clock and the results.
-- **Tournament:** a bracket of eight. Each round two fighters meet in a big sandy coliseum full of pillars and cover. Everyone starts with a pistol and finds guns, ammo, health and shields on the map. A storm closes in so every duel ends. Matches between two bots play at about 2.4x speed. Everyone else spectates (click or Tab to switch fighter).
-- **Capture the Flag:** Red vs Blue on a floating island. Take the enemy flag to your own base while yours is at home. First to three, or the best score after seven minutes. You respawn after four seconds.
-- **Battle Royale:** up to 20 fighters ride a bus over a large island, jump out (Space or click), land in towns, open chests for guns and ammo and stay inside the shrinking storm. Last one standing wins.
-- Controls in the three shooters: WASD to move, mouse to aim and shoot, R reload, E pick up a gun or open a chest, 1-4 or the wheel to switch guns. Ammo, health and shields are picked up by walking over them. Houses in Battle Royale have roofs that fade away when you walk inside.
+- **Tournament:** a bracket of eight in a sandy coliseum with stands and banners. A storm closes in so every duel ends.
+- **Capture the Flag:** Red vs Blue on a snowy floating island with a frozen pond. First to three, or the best score after seven minutes.
+- **Battle Royale:** up to 20 fighters ride a bus over a green island, land in towns, loot chests and stay inside the shrinking storm.
+- **Gun Game:** a warehouse of shipping containers. Every kill upgrades your gun; first to finish the 8-level ladder wins.
+- **Wave Survival:** up to 4 players defend a crystal in a dark graveyard town against 15 waves of zombies (walkers, runners, tanks, spitters, a boss every fifth wave). Shop keys: Z ammo, X heal, C better gun, V turret.
+- **Hide and Seek:** two fixed maps (a winter lobby island and a casino hall) chosen at random; they are identical every game. Hiders pick one object from the map (slot machine, snowman...) and cannot switch. Hiders must whistle (F) when their timer says so, or they are highlighted in red. Seekers lose a third of their health for shooting a decoy. Bots only know where a hider is after a whistle or a highlight, and can lose track.
+- Bots in the gun modes are deliberately weak (poor aim, slow reactions, half damage, slower fire).
+- Controls in the shooters: WASD to move, mouse to aim and shoot, R reload, E pick up, 1-4 or the wheel to switch guns. On phones the on-screen joystick and buttons are used.
 - Rewards: coins for rounds won, captures, eliminations and the final result.
+
+## Parties
+In the lobby, open **Party**: create a party (you get a 5-letter code), join with a code, or invite an online friend by name. The party leader picks a game and starts it for everyone. Party members who find a match automatically land in the same room. Parties live on the server and need it to be running.
+
+## Survival World
+A big open world with three dimensions: the **Overworld**, the **Nether** and **the End** (`🌍 Survival World` in the Arena door menu). Mine, build, farm, fish, trade with villagers, sail boats, explore structures, survive the monsters that come out at night, and take on the Ender Dragon. It saves, it works alone, with friends or on a server, and it works on phones.
+
+**Controls.** WASD or the arrow keys move; the mouse aims. Hold **G** or the left mouse button to mine and fight. Press **F** or right-click to use what you hold: place blocks, eat, shoot a bow, cast a fishing rod, light flint and steel, use a bed, open chests and doors, trade with villagers, get in a boat. **E** opens the backpack and crafting, **1-9** or the mouse wheel pick a hotbar slot, **H** shows advancements, **Esc** is the pause menu, **V** toggles flying in Creative. On phones there is a joystick plus **BAG**, **USE** and **HIT** buttons.
+
+**Game modes and difficulty** (chosen when you create a world or request a server):
+- **Survival** has hearts, a hunger bar and an armor bar, and monsters at night.
+- **Creative** has no damage and no hunger, flying (V), and a palette with every item and block.
+- Survival worlds are **Easy** (monsters are weaker and slower, you keep your things if you die, starving never takes you below 5 hearts), **Normal** (you drop a grave with your things; starving never kills you) or **Hard** (monsters hit 50% harder and move faster, starving can kill you). The host can change Easy/Normal/Hard from the pause menu.
+- **Hardcore** is Hard with **one life**. When you die you can only watch. When everyone in the world is dead, the world is **locked for good**: it stays in your list with a 💀 badge and can never be opened again. Hosting a locked world is refused, and a locked server shows as "over" in the server list (its owner or staff can press *Start over (new world)* under *My requests*, which wipes it and gives it a new map).
+
+**What there is to do:**
+- *Dimensions.* Build an obsidian frame (4x5) and light it with flint and steel to open a Nether portal. The Nether has lava seas, soul sand, Nether fortresses, piglins, blazes and ghasts, and it is smaller than the Overworld, so a portal trip is a shortcut (one step there is about two back home). Find a stronghold, fill the End portal frames with Eyes of Ender, and jump in to fight the Ender Dragon (crystals heal it, so break them first). Beating it opens the exit portal home.
+- *Structures.* Villages (houses, farms, wells, lamps, villagers who trade), dungeons with monster spawners and chests, ruined portals, desert pyramids, camps, strongholds, shipwrecks and treasure islands in the sea, Nether fortresses. Chests hold loot that depends on where they are.
+- *Survival.* Hearts and hunger, tools in four tiers (wood, stone, iron, diamond) and armor in four (leather, iron, gold, diamond), all with durability, a workbench, furnace and campfire, a bow and arrows, buckets (water on lava makes obsidian), TNT and flint and steel, farming (hoe, seeds, wheat, carrots, potatoes, bread), fishing, cooking, and hunting cows, pigs, sheep and chickens for food and materials.
+- *Night.* At night zombies, skeletons, spiders, creepers and endermen spawn near players (more on Hard, fewer on Easy). Zombies burn in daylight. Press F on a **bed** to set your respawn point, and at night to sleep and skip to morning (you cannot sleep with monsters nearby, and in multiplayer half of the players must be asleep). Beds explode in the Nether and the End.
+- *Boats.* Craft a boat, press F on water, and sail across the sea to islands and shipwrecks.
+- *Villagers.* Three kinds of villager (farmer, smith, hunter) trade in emeralds: they buy crops, coal, iron, string and bones, and sell food, iron tools and armor, bows and arrows, beds, boats, fishing rods, ender pearls and TNT. Press F on one to trade.
+- *Advancements.* 28 of them (open **H**), each paying coins that count towards your site level.
+- *Death.* On Normal and Hard your things stay in a grave where you died, so you can go back and take them.
+
+**Playing with others**
+- **Singleplayer:** create up to 12 worlds, each with its own seed and mode. They are saved in the browser (local storage) together with your backpack, position and advancements.
+- **Host online:** press *Host online* on one of your worlds. Turn *Random joins* on to let strangers find it through *Join a random public world*; leave it off to share only the invite code shown in the game (or through your Friends list). Up to 8 players. **If the host leaves, the next player becomes host and the world keeps running** (mobs, boats, chests and the clock are handed over). A world hosted this way is only saved on the original owner's browser.
+- **Servers:** any signed-in player can *Request a server* and pick its mode and difficulty. The owner or an admin approves or declines it under *Review server requests*. Approved servers appear in the *Server list* with mode badges; anyone can start one if it is offline. The world is stored on the server, compressed (gzip), up to about 450,000 characters of save data per world, so it survives restarts as long as your database does. A player can have 3 servers (pending or live), and can *Reset world* when nobody is playing on it.
+- The host runs the simulation (mobs, projectiles, the dragon) for every dimension that has a player in it and sends snapshots; other players send what they do and see what the host says. Block and chest edits are batched and shared, new joiners get the whole world, and sleeping, hardcore deaths and time are kept in sync.
+
+**For the server operator.** Rooms of kind `world` now carry `gm` (`s` or `c`) and `df` (`e`, `n`, `h`, `x`). `world.request` takes `gm` and `df`. `world.save` accepts up to 30 parts and gzip data (`z1:` prefix, checked on the server; plain JSON from older saves still works). `world.reset` wipes a live server that nobody is on (owner or staff only). A hardcore server whose players all died is marked `dead` and `world.start` refuses it until it is reset. The map generator is new, so worlds from the first Survival World release cannot be loaded as they were: a browser world from that release is rebuilt with the new map on the same seed the first time the menu opens (its old blocks are not kept), and a server whose stored save is from that release starts a fresh world on the same seed.
 
 ## Parkour: Classic and Hardcore
 Both modes are in the Parkour lobby (online, the host picks; offline, you pick). The choice is remembered.
@@ -122,8 +158,8 @@ Effects aimed at other players go through the server (`admin.fx`, `admin.poll`),
 ## Chess
 Chess against the bot, or against someone in your lobby: sit at the chess table, pick *Play someone in my lobby*, challenge a player and they get an accept/decline popup. Colors are random, moves are relayed through the lobby, and there is a Resign button.
 
-## Low-end devices
-Parkour (especially Hardcore) has three quality tiers. It steps up by itself when the frame rate stays low: first no decoration, then a lower render resolution with flat backgrounds, light-weight opponents and fewer bot calculations. Very weak devices start in the middle tier, and the Parkour lobby has a *Low-end device mode* checkbox to force the lowest tier.
+## Slow devices
+Parkour (especially Hardcore) has three quality tiers. It steps up by itself when the frame rate stays low: first no decoration, then a lower render resolution with flat backgrounds, light-weight opponents and fewer bot calculations.
 
 ## Reports and moderation
 Players report from the People list (or by clicking a name in global chat) with a reason and note; the recent chat is attached.
