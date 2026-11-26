@@ -260,11 +260,12 @@ body.dragging{user-select:none}body.dragging iframe{pointer-events:none}
 .audpanel{position:fixed;top:66px;right:14px;z-index:9500;background:rgba(10,18,50,.96);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:190px;backdrop-filter:blur(10px)}
 .audpanel[hidden]{display:none}.audpanel label{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px}.audpanel input[type=range]{width:100px}
 .tui{position:absolute;inset:0;pointer-events:none;z-index:4;user-select:none;-webkit-user-select:none;touch-action:none}
-.tstick{position:absolute;left:14px;bottom:14px;width:128px;height:128px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);pointer-events:auto;touch-action:none}
-.tstick i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 2px 10px rgba(0,0,0,.4)}
-.tbtns{position:absolute;right:12px;bottom:12px;display:flex;flex-wrap:wrap-reverse;justify-content:flex-end;gap:10px;max-width:58%;pointer-events:none}
-.tb{pointer-events:auto;touch-action:none;min-width:58px;height:58px;padding:0 10px;border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.4);color:#fff;font:800 11px var(--head);letter-spacing:.3px}
-.tb.big{min-width:78px;height:78px;font-size:13px;background:rgba(242,184,75,.4);border-color:rgba(242,184,75,.8)}.tb.on{background:rgba(255,255,255,.5)}
+.tstick{position:absolute;left:18px;bottom:18px;width:168px;height:168px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);pointer-events:auto;touch-action:none}
+.tstick i{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px 0 0 -36px;border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 2px 10px rgba(0,0,0,.4)}
+.tbtns{position:absolute;right:16px;bottom:16px;display:flex;flex-wrap:wrap-reverse;justify-content:flex-end;align-items:flex-end;gap:12px;max-width:60%;pointer-events:none}
+.tb{pointer-events:auto;touch-action:none;min-width:76px;height:76px;padding:0 12px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.45);color:#fff;font:800 14px var(--head);letter-spacing:.3px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.tb.big{min-width:104px;height:104px;font-size:17px;background:rgba(242,184,75,.4);border-color:rgba(242,184,75,.8)}.tb.on{background:rgba(255,255,255,.5)}
+@media (max-height:430px){.tstick{width:148px;height:148px;left:14px;bottom:12px}.tstick i{width:64px;height:64px;margin:-32px 0 0 -32px}.tb{min-width:66px;height:66px;font-size:13px}.tb.big{min-width:90px;height:90px;font-size:15px}.tbtns{bottom:10px;right:12px;gap:10px}}
 .room{max-width:640px;margin:0 auto;text-align:center;padding:10px 6px}.room h2{font:800 28px var(--head)}.rsub{color:var(--mute)}
 .rclock{font:800 74px/1.1 var(--head);color:var(--gold);margin:6px 0}
 .rbar{height:8px;background:rgba(255,255,255,.1);border-radius:8px;overflow:hidden;margin:4px auto 16px;max-width:420px}.rbar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--steel),var(--gold));transition:width .12s linear}
@@ -840,7 +841,7 @@ function pkModeBox(get,set,canEdit){
 }
 function mpRoster(kind,hum){
   const used=new Set(hum.map(h=>h.name));let bi=Math.floor(Math.random()*500),gd=0;
-  const bot=()=>{let c=botCos(++bi);while((used.has(c.name)||!c.name)&&gd++<400)c=botCos(++bi);used.add(c.name);return{name:c.name,skin:c.skin,hat:c.hat,pat:c.pat,tr:c.tr,kf:c.kf,rain:false,bot:true}};
+  const bot=()=>{let c=botCos(++bi);while((used.has(c.name)||!c.name)&&gd++<400)c=botCos(++bi);used.add(c.name);return{name:c.name,skin:c.skin,hat:c.hat,pat:c.pat,tr:c.tr,kf:c.kf,rain:false,bot:true,skill:botSkill()}};
   const out=[];
   const sk=()=>.12+Math.random()*.28;
   if(kind==='tournament'){hum.slice(0,8).forEach(h=>out.push({...h}));while(out.length<8){const b=bot();b.skill=sk();out.push(b)}}
@@ -2658,12 +2659,20 @@ const GUNS={
   crossbow:{n:'Crossbow',d:75,rate:1,mag:1, sp:1200,rg:1400,spr:.006,pel:1,ammo:'heavy',rl:1.1,bc:'#c8a46a'},
   railgun:{n:'Railgun', d:120,rate:.6,mag:1, sp:4200,rg:3000,spr:0,   pel:1,ammo:'heavy',rl:1.6,bc:'#7ff3ff'},
   laser:  {n:'Laser Rifle',d:15,rate:8.5,mag:40,sp:2600,rg:1300,spr:.012,pel:1,ammo:'med',rl:2,bc:'#ff4fd8'},
-  flame:  {n:'Flamethrower',d:5,rate:16,mag:80,sp:620,rg:280,spr:.28,pel:2,ammo:'med',rl:2.6,bc:'#ff8a3d'}};
+  flame:  {n:'Flamethrower',d:5,rate:16,mag:80,sp:620,rg:280,spr:.28,pel:2,ammo:'med',rl:2.6,bc:'#ff8a3d'},
+  compact:{n:'Compact SMG',d:11,rate:12, mag:30,sp:1000,rg:680, spr:.09,pel:1,ammo:'light',rl:1.6},
+  carbine:{n:'Carbine',d:21,rate:6.5,mag:30,sp:1350,rg:1100,spr:.04,pel:1,ammo:'med',rl:2},
+  semi:   {n:'Semi-Auto Rifle',d:36,rate:3.2,mag:12,sp:1700,rg:1400,spr:.015,pel:1,ammo:'heavy',rl:2},
+  heavysn:{n:'Heavy Sniper',d:105,rate:.7,mag:4,sp:2600,rg:2400,spr:.003,pel:1,ammo:'heavy',rl:3.2},
+  sawedoff:{n:'Sawed-Off',d:16,rate:2.2,mag:2,sp:850,rg:260,spr:.32,pel:10,ammo:'shell',rl:1.6},
+  nailgun:{n:'Nail Gun',d:10,rate:13,mag:60,sp:1100,rg:640,spr:.07,pel:1,ammo:'light',rl:2.2,bc:'#c8ccd6'},
+  plasma: {n:'Plasma Rifle',d:28,rate:4.5,mag:24,sp:1300,rg:1100,spr:.02,pel:1,ammo:'med',rl:2,bc:'#5dff9e'},
+  blaster:{n:'Blaster Pistol',d:22,rate:4,mag:15,sp:1600,rg:950,spr:.015,pel:1,ammo:'light',rl:1.3,bc:'#4fb6ff'}};
 const GUNL=Object.keys(GUNS);   /* every gun, in a fixed order: the network sends a gun as its index here */
 /* how each gun looks in a player's hands: length, colours and a few details */
 const GSHAPE={pistol:[24,'#1d212c',0],revolver:[28,'#5a4a3a','cyl'],deagle:[30,'#a3a9b6','big'],uzi:[24,'#22262f','mag'],smg:[30,'#1d212c','mag'],p90:[30,'#3a4a3a','top'],tommy:[34,'#5a3a22','drum'],
   shotgun:[38,'#4a3424','pump'],dbarrel:[36,'#5a3a22','dbl'],autoshot:[36,'#2a2e38','drum'],rifle:[40,'#2a2e38','mag'],ak:[40,'#6b4a2a','curve'],scar:[40,'#c2a878','mag'],lmg:[46,'#2a2e38','box'],minigun:[44,'#3a3f4c','barrels'],
-  dmr:[48,'#30363f','scope'],sniper:[52,'#2a3a2a','scope'],crossbow:[36,'#6b4a2a','bow'],railgun:[50,'#2a3550','rail'],laser:[42,'#e8eef8','laser'],flame:[40,'#8a2a1a','tank'],gold:[34,'#d9a520','big']};
+  dmr:[48,'#30363f','scope'],sniper:[52,'#2a3a2a','scope'],crossbow:[36,'#6b4a2a','bow'],railgun:[50,'#2a3550','rail'],laser:[42,'#e8eef8','laser'],flame:[40,'#8a2a1a','tank'],gold:[34,'#d9a520','big'],compact:[26,'#2a2e38','mag'],carbine:[38,'#4a5a3a','mag'],semi:[44,'#6b4a2a','scope'],heavysn:[58,'#1d212c','scope'],sawedoff:[26,'#5a3a22','dbl'],nailgun:[30,'#d9a520','box'],plasma:[40,'#2a3a4a','laser'],blaster:[28,'#e8eef8','rail']};
 function drawGunShape(cx,t,tr,tim){
   const S=GSHAPE[t]||GSHAPE.pistol,L=S[0],col=S[1],k=S[2];
   cx.fillStyle='#14161e';rrp(cx,8,-1,9,9,2.5);cx.fill();   /* grip */
@@ -2693,7 +2702,7 @@ const mulberry=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+M
 const arWeigh=(rn,arr)=>{let t=0;for(const[,w]of arr)t+=w;let r=rn()*t;for(const[v,w]of arr){if((r-=w)<0)return v}return arr[0][0]};
 const arLootRoll=(rn,heavy)=>{   /* one random pickup: guns get rarer the better they are */
   const k=arWeigh(rn,[['gun',heavy?40:28],['ammo',heavy?30:40],['heal',16],['shield',12]]);
-  if(k==='gun')return{k,t:arWeigh(rn,[['pistol',14],['revolver',6],['uzi',8],['smg',16],['p90',6],['shotgun',14],['dbarrel',6],['rifle',16],['ak',10],['scar',6],['dmr',5],['sniper',8],['lmg',3]]),tr:arWeigh(rn,[[0,58],[1,28],[2,11],[3,3]])};
+  if(k==='gun')return{k,t:arWeigh(rn,[['pistol',14],['revolver',6],['uzi',8],['smg',16],['p90',6],['shotgun',14],['dbarrel',6],['rifle',16],['ak',10],['scar',6],['dmr',5],['sniper',8],['lmg',3],['compact',8],['carbine',8],['semi',5],['sawedoff',5],['plasma',3],['blaster',5],['nailgun',3],['heavysn',2]]),tr:arWeigh(rn,[[0,58],[1,28],[2,11],[3,3]])};
   if(k==='ammo')return{k,t:arWeigh(rn,[['light',35],['med',30],['shell',20],['heavy',15]]),n:1};
   return{k,t:k,n:1}};
 function arenaWorld(mode,seed,matchNo){
@@ -2865,9 +2874,13 @@ const arZonePlan={
   br:{r0:5600,steps:[[60,3300,50,1],[45,2200,40,2],[40,1400,35,4],[35,800,30,6],[30,380,25,9],[20,0,20,14]]},
   tour:{r0:2300,steps:[[55,170,50,7]]}};
 
+/* bots come in four skill tiers, so every match has a mix of easy and hard opponents */
+const BOT_TIERS=[['Rookie','#c08a5a',.36,.5,25],['Regular','#c9d1e0',.55,.68,35],['Skilled','#f2c13d',.71,.83,27],['Elite','#7fe3ff',.86,.95,13]];
+function botSkill(r){r=r||Math.random;let x=r()*100;for(const t of BOT_TIERS){if((x-=t[4])<0)return t[2]+r()*(t[3]-t[2])}return .6}
+const botTier=sk=>sk>=.85?3:sk>=.7?2:sk>=.54?1:0;
 function soloRoster(mode,pool){
   const me={name:user,...myLook(),me:true,bot:false};
-  const SK=()=>.12+Math.random()*.28,out=[];
+  const SK=()=>botSkill(),out=[];
   if(mode==='ctf'){const per=Math.max(1,Math.ceil((pool.length+1)/2));out.push({...me,team:0});pool.forEach((b,i)=>out.push({name:b.name,skin:b.skin,hat:b.hat,bot:true,skill:SK(),team:(i+1)%2}));
     return out.slice(0,per*2)}
   out.push(me);pool.forEach(b=>out.push({name:b.name,skin:b.skin,hat:b.hat,bot:true,skill:SK(),team:0}));return out;
@@ -2887,7 +2900,7 @@ function arenaGame(box,win,opts){
   const BRT=MODE==='br'&&(()=>{const g=new Map();let n=0,teams=false;for(const d of defs){if(d.pt&&!d.bot){if(!g.has(d.pt))g.set(d.pt,[]);g.get(d.pt).push(d)}}
     for(const d of defs)d.team=100+(n++);for(const[,list]of g)if(list.length>1){teams=true;const id=list[0].team;list.forEach(d=>{d.team=id})}return teams})();
   const meDef=defs.find(d=>MP?d.pid===NET.id:d.me)||defs[0];
-  const CAP={light:120,med:120,shell:24,heavy:20},TLIM={tour:150,ctf:420,gun:420,inf:210,hide:150,murder:210};let PL=null;
+  const CAP={light:120,med:120,shell:24,heavy:20},TLIM={tour:150,ctf:420,gun:540,inf:210,hide:150,murder:210};let PL=null;
   let W=null,FS=[],byId=new Map(),BU=[],items=new Map(),chests=[],flags=[],Z=null,bus=null,bid=1,nid=1000,score=[0,0],matchNo=0;
   let ST={phase:'play',t:0,over:false,ff:1};const feed=[],evq=[],TRL=mkTrails(),KFL=[];let banner=null,spec=-1,endEl=null,mm=null;
   const addFeed=(txt,c)=>{feed.push({t:5,txt,c:c||'#fff'});if(feed.length>6)feed.shift()};
@@ -3038,7 +3051,7 @@ function arenaGame(box,win,opts){
     f.x+=mx*sp*dt;f.y+=my*sp*dt;if(f.kvx||f.kvy){f.x+=f.kvx*dt;f.y+=f.kvy*dt;const kk=Math.pow(.015,dt);f.kvx*=kk;f.kvy*=kk;if(Math.abs(f.kvx)+Math.abs(f.kvy)<8)f.kvx=f.kvy=0}arPush(W,f);
   }
   /* ----- bots ----- */
-  const PREF={pistol:360,smg:280,shotgun:150,rifle:520,sniper:900};
+  const PREF0={pistol:360,smg:280,shotgun:150,rifle:520,sniper:900},PREF=new Proxy(PREF0,{get:(o,k)=>o[k]!=null?o[k]:GUNS[k]?Math.max(140,Math.min(900,GUNS[k].rg*.45)):400});
   function aiThink(f,dt){
     const a=f.ai,inp=f.inp,g=f.g[f.cur],G=g&&GUNS[g.t];
     if(PL&&PL.ai&&PL.ai(f,dt))return;
@@ -3049,18 +3062,20 @@ function arenaGame(box,win,opts){
     if(f.st!=='ground'||!f.alive)return;
     inp.f=0;inp.r=0;a.t-=dt;
     if(a.t>0){ /* keep last decision, but keep shooting at the current target */
-      const tg=a.tgt>=100000?ZB.find(z=>z.id===a.tgt-100000):byId.get(a.tgt);if(tg&&tg.alive&&G&&g.m>0&&ST.t-a.seen>(.5+(1-f.skill)*1.1)){const d=Math.hypot(tg.x-f.x,tg.y-f.y);if(d<G.rg*.95){inp.f=1}}
+      const tg=a.tgt>=100000?ZB.find(z=>z.id===a.tgt-100000):byId.get(a.tgt);
+      if(tg&&(tg.alive||tg.hp>0)){inp.a=aimAt(f,tg)+(a.aimE||0);if(G&&g.m>0&&ST.t-a.seen>react(f)){const d=Math.hypot(tg.x-f.x,tg.y-f.y);if(d<G.rg*.95&&burstOk(f,a,d,G,dt))inp.f=1}}
       return}
-    a.t=.16+rn()*.1;
-    let tg=null,td=1e9;
-    for(const o of FS){if(o===f||!o.alive||o.st!=='ground'||(TEAMM.includes(MODE)&&o.team===f.team))continue;const d=Math.hypot(o.x-f.x,o.y-f.y);if(d<td&&d<(MODE==='surv'?1100:600)&&arLos(W,f.x,f.y,o.x,o.y)){tg=o;td=d}}
+    a.t=.12+rn()*.08;
+    let tg=null,td=1e9;const sight=MODE==='surv'?1100:560+f.skill*340;
+    for(const o of FS){if(o===f||!o.alive||o.st!=='ground'||(TEAMM.includes(MODE)&&o.team===f.team))continue;const d=Math.hypot(o.x-f.x,o.y-f.y);if(d<td&&d<sight&&arLos(W,f.x,f.y,o.x,o.y)){tg=o;td=d}}
     if(MODE==='surv'||MODE==='stand'){for(const z of ZB){const d=Math.hypot(z.x-f.x,z.y-f.y);if(d<td&&d<1100&&arLos(W,f.x,f.y,z.x,z.y)){tg=z;td=d}}}
     {const tid=tg?(tg.t?100000+tg.id:tg.id):-1;if(tg&&a.tgt!==tid)a.seen=ST.t;a.tgt=tid}
     let gx=null,gy=null,mx=0,my=0;
     if(tg){
       const want=G?PREF[g.t]:600,ang=Math.atan2(tg.y-f.y,tg.x-f.x);
-      inp.a=ang+(1-f.skill)*.85*(rn()+rn()-1);
-      a.sdt-=.2;if(a.sdt<=0){a.sdir=-a.sdir;a.sdt=.7+rn()*1.2}
+      /* aim error: a new wobble each think, smaller for better bots and when standing still */
+      a.aimE=((a.aimE||0)*.45+(1-f.skill)*(1-f.skill)*1.15*(rn()+rn()-1)*.55);inp.a=aimAt(f,tg)+a.aimE;
+      a.sdt-=.15;if(a.sdt<=0){a.sdir=-a.sdir;a.sdt=.35+rn()*(1.6-f.skill)}
       let fwd=td>want+90?1:td<want-90?-1:0;if(f.hp<32||!G)fwd=-1;
       mx=Math.cos(ang)*fwd+Math.cos(ang+1.5708)*a.sdir*.9;my=Math.sin(ang)*fwd+Math.sin(ang+1.5708)*a.sdir*.9;
       if(G&&g.m<=0&&f.rl<=0)inp.r=1;
@@ -3098,14 +3113,22 @@ function arenaGame(box,win,opts){
           else{if(!a.wp||Math.hypot(a.wp[0]-f.x,a.wp[1]-f.y)<80||ST.t>a.wt){const tw=W.towns[ri(0,W.towns.length-1)]||[W.cx,W.cy];a.wp=[tw[0]+(rn()-.5)*500,tw[1]+(rn()-.5)*500];if(Math.hypot(a.wp[0]-Z.cx,a.wp[1]-Z.cy)>Z.r-200)a.wp=[Z.cx+(rn()-.5)*Z.r*.8,Z.cy+(rn()-.5)*Z.r*.8];a.wt=ST.t+25}gx=a.wp[0];gy=a.wp[1]}
         }
       }
-      if(gx!=null){const dx=gx-f.x,dy=gy-f.y,d=Math.hypot(dx,dy);if(d>26){mx=dx/d;my=dy/d;inp.a=Math.atan2(dy,dx)}}
+      if(gx!=null){const gx0=gx,gy0=gy;[gx,gy]=route(f,gx,gy);const near=gx===gx0&&gy===gy0;const dx=gx-f.x,dy=gy-f.y,d=Math.hypot(dx,dy);if(d>(near?26:10)){mx=dx/d;my=dy/d;inp.a=Math.atan2(dy,dx)}}
     }
     /* getting stuck on a wall: sidestep for a moment, and give up on loot that cannot be reached */
     if(a.unst>0){a.unst-=.2;mx=a.ux;my=a.uy}
-    a.lt+=.2;if(a.lt>=.8){if((mx||my)&&Math.hypot(f.x-a.lx,f.y-a.ly)<14){const r=rn()<.5?1:-1;a.ux=-my*r+(rn()-.5)*.5;a.uy=mx*r+(rn()-.5)*.5;a.unst=1;a.stuckN++;if(a.cur&&a.stuckN>1){a.bad[a.cur.id]=ST.t+25;a.stuckN=0;a.cur=null}}else if(Math.hypot(f.x-a.lx,f.y-a.ly)>60)a.stuckN=0;a.lx=f.x;a.ly=f.y;a.lt=0}
+    a.lt+=.2;if(a.lt>=.8){if((mx||my)&&Math.hypot(f.x-a.lx,f.y-a.ly)<14&&a.stuckN>=2&&bldAt(f.x,f.y,-4)){const d=doorPts(bldAt(f.x,f.y,-4));if(d){const dx=d.ix-f.x,dy=d.iy-f.y,dl=Math.hypot(dx,dy)||1;a.ux=dx/dl;a.uy=dy/dl;a.unst=1;a.stuckN++}}else if((mx||my)&&Math.hypot(f.x-a.lx,f.y-a.ly)<14){const r=rn()<.5?1:-1;a.ux=-my*r+(rn()-.5)*.5;a.uy=mx*r+(rn()-.5)*.5;a.unst=1;a.stuckN++;if(a.cur&&a.stuckN>1){a.bad[a.cur.id]=ST.t+25;a.stuckN=0;a.cur=null}}else if(Math.hypot(f.x-a.lx,f.y-a.ly)>60)a.stuckN=0;a.lx=f.x;a.ly=f.y;a.lt=0}
     inp.mx=mx;inp.my=my;
-    if(tg&&G&&g.m>0&&ST.t-a.seen>(.5+(1-f.skill)*1.1)&&td<G.rg*.95)inp.f=1;
+    if(tg&&G&&g.m>0&&ST.t-a.seen>react(f)&&td<G.rg*.95&&burstOk(f,a,td,G,.15))inp.f=1;
+    /* a good bot swaps to a better gun in its pockets for the range it is fighting at */
+    if(tg&&f.skill>.6&&f.g.length>1&&rn()<.08){let bi=f.cur,bv=-1;f.g.forEach((q,i)=>{if(!q||q.m<=0&&!(f.am[GUNS[q.t].ammo]>0))return;const Q=GUNS[q.t],v=Q.d*Q.rate*Q.pel/(1+Math.abs(td-PREF[q.t])/300);if(v>bv){bv=v;bi=i}});if(bi!==f.cur){f.cur=bi;f.rl=0}}
   }
+  function aimAt(f,tg){   /* lead a moving target: better bots predict where it will be when the bullet gets there */
+    const g=f.g[f.cur],G=g&&GUNS[g.t],sp=G?G.sp:1200,d=Math.hypot(tg.x-f.x,tg.y-f.y),tt=d/sp*Math.min(1,f.skill*1.1);
+    const vx=Math.max(-400,Math.min(400,tg.vx||0)),vy=Math.max(-400,Math.min(400,tg.vy||0));return Math.atan2(tg.y+vy*tt-f.y,tg.x+vx*tt-f.x)}
+  const react=f=>.12+(1-f.skill)*.65;
+  function burstOk(f,a,d,G,dt){   /* weaker bots hold the trigger and spray; better ones tap at long range */
+    if(G.rate<5||d<G.rg*.45)return true;a.bt=(a.bt||0)+dt;const on=.35+f.skill*.25,off=.12+f.skill*.18;if(a.bt>on+off)a.bt=0;return f.skill<.5||a.bt<on}
   /* ----- the simulation (solo player or room host) ----- */
   const caps=[0,0],wins={},capN={};let tourOut=null;
   function respawnCtf(f){if(PL&&PL.respawn){PL.respawn(f);return}f.alive=true;f.hp=100;f.sh=0;f.st='ground';f.rl=0;f.cd=0;spawnFor(f,0);if(f.ai){f.ai.land=null;f.ai.role=rn()<.35?1:0}}
@@ -3142,6 +3165,7 @@ function arenaGame(box,win,opts){
       if(f.bot&&f.ai&&f.alive)aiThink(f,dt);
       if(f.resp>0){f.resp-=dt;if(f.resp<=0)respawnCtf(f)}
       if(f.inv>0)f.inv-=dt;
+      if(dt>0){if(f.ex0!=null){const k=Math.min(1,dt*8);f.vx=(f.vx||0)*(1-k)+(f.x-f.ex0)/dt*k;f.vy=(f.vy||0)*(1-k)+(f.y-f.ey0)/dt*k}f.ex0=f.x;f.ey0=f.y}   /* measured speed, so bots can lead a moving target */
       if(!f.alive)continue;
       const inp=f.inp;
       if(inp.s>=0&&inp.s!==f.cur&&f.g[inp.s]){f.cur=inp.s;f.rl=0}inp.s=-1;
@@ -3441,7 +3465,16 @@ function arenaGame(box,win,opts){
     cx.fillStyle=b.roof;cx.fillRect(x,y,w,h);cx.fillStyle=g;cx.globalAlpha=b.ra*.85;cx.fillRect(x,y,w,h);cx.globalAlpha=b.ra;
     cx.strokeStyle='rgba(0,0,0,.4)';cx.lineWidth=4;cx.strokeRect(x,y,w,h);cx.strokeStyle='rgba(0,0,0,.28)';cx.lineWidth=3;cx.beginPath();horiz?(cx.moveTo(x,y+h/2),cx.lineTo(x+w,y+h/2)):(cx.moveTo(x+w/2,y),cx.lineTo(x+w/2,y+h));cx.stroke();
     cx.strokeStyle='rgba(0,0,0,.12)';cx.lineWidth=2;cx.beginPath();if(horiz){for(let k=x+26;k<x+w;k+=26){cx.moveTo(k,y);cx.lineTo(k,y+h)}}else{for(let k=y+26;k<y+h;k+=26){cx.moveTo(x,k);cx.lineTo(x+w,k)}}cx.stroke();
+    cx.globalAlpha=1;drawDoor(b);
+  }
+  /* every house shows where its door is: a lit doorway on the roof's edge */
+  function drawDoor(b){
+    const d=doorPts(b);if(!d)return;const h=b.door==='t'||b.door==='b';
+    cx.save();cx.translate(d.cx,d.cy);
+    cx.globalAlpha=Math.max(.35,b.ra);cx.fillStyle='rgba(40,20,8,.85)';h?cx.fillRect(-56,-12,112,24):cx.fillRect(-12,-56,24,112);
+    cx.fillStyle='#ffd77a';cx.globalAlpha=.55*Math.max(.35,b.ra);h?cx.fillRect(-48,-6,96,12):cx.fillRect(-6,-48,12,96);
     cx.globalAlpha=1;
+    cx.restore();
   }
   function drawFighter(f,t){
     if(PL&&PL.drawF&&PL.drawF(f,t))return;
@@ -3459,7 +3492,7 @@ function arenaGame(box,win,opts){
     if(dir!==1)gun();
     if(f.car>=0){const col=f.car?'#4f8cff':'#ff4a4a',fy=feet-62*sz;cx.fillStyle='#ddd';cx.fillRect(f.x-1,fy-36,3,38);cx.fillStyle=col;cx.beginPath();cx.moveTo(f.x+2,fy-36);cx.lineTo(f.x+28,fy-28);cx.lineTo(f.x+2,fy-20);cx.fill()}
     const me=f.id===meDef.id;cx.textAlign='center';cx.font='700 12px DM Sans,sans-serif';const ny=feet-56*sz-(f.car>=0?0:0);
-    const w=cx.measureText(f.name).width+12;cx.fillStyle='rgba(10,16,44,.7)';rrp(cx,f.x-w/2,ny-12,w,17,8);cx.fill();cx.fillStyle=f.bot?'#7fc4ff':me?'#ffe28a':(BRT&&meF()&&f.team===meF().team)?'#7dffa8':'#fff';cx.fillText(f.name,f.x,ny+1);
+    const w=cx.measureText(f.name).width+12;cx.fillStyle='rgba(10,16,44,.7)';rrp(cx,f.x-w/2,ny-12,w,17,8);cx.fill();cx.fillStyle=f.bot?'#7fc4ff':me?'#ffe28a':(BRT&&meF()&&f.team===meF().team)?'#7dffa8':'#fff';cx.fillText(f.name,f.x,ny+1);if(f.bot&&!f.perfect&&f.skill!=null){const tw=cx.measureText(f.name).width/2+8;cx.fillStyle=BOT_TIERS[botTier(f.skill)][1];cx.beginPath();cx.arc(f.x-tw,ny-3,3.6,0,TAU);cx.fill()}
     if(!me&&!(PL&&PL.noHp)){cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(f.x-22,ny+6,44,5);cx.fillStyle=f.hp>50?'#58d36b':f.hp>25?'#f2b84b':'#e24b4b';cx.fillRect(f.x-22,ny+6,44*Math.max(0,f.hp)/100,5);if(f.sh>0){cx.fillStyle='#4fa8ff';cx.fillRect(f.x-22,ny+6,44*Math.min(1,f.sh/100),2)}}
   }
   function drawMini(){
@@ -3551,7 +3584,26 @@ function arenaGame(box,win,opts){
   /* ================= more modes, as plugins: the engine calls these hooks ================= */
   const TEAMM=['ctf','surv','stand','inf','hide','br'],angDiff=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
   const sayAll=(txt,s)=>{say(txt,s);ev('px','say',txt,s)};
-  function steer(f,gx,gy,dt){   /* walk toward a point, sidestepping when stuck on a wall */
+  /* houses: a bot that needs to get in or out walks to the doorway first, and goes around corners on the way */
+  const DOORN={t:[0,-1],b:[0,1],l:[-1,0],r:[1,0]};
+  function bldAt(x,y,m){for(const b of W.blds){if(x>b.x-m&&x<b.x+b.w+m&&y>b.y-m&&y<b.y+b.h+m)return b}return null}
+  function doorPts(b){const n=DOORN[b.door];if(!n)return null;const h=b.door==='t'||b.door==='b',cx0=h?b.x+b.w/2:(b.door==='l'?b.x:b.x+b.w),cy0=h?(b.door==='t'?b.y:b.y+b.h):b.y+b.h/2;
+    return{cx:cx0,cy:cy0,ix:cx0-n[0]*62,iy:cy0-n[1]*62,ox:cx0+n[0]*72,oy:cy0+n[1]*72}}
+  const segRect=(x0,y0,x1,y1,b,m)=>{const L=b.x-m,R=b.x+b.w+m,T=b.y-m,B=b.y+b.h+m;for(let i=1;i<=24;i++){const k=i/25,x=x0+(x1-x0)*k,y=y0+(y1-y0)*k;if(x>L&&x<R&&y>T&&y<B)return true}return false};
+  function around(f,gx,gy){   /* if a house is in the way, head for its nearest free corner first */
+    for(const b of W.blds){if(bldAt(f.x,f.y,-2)===b)continue;if(!segRect(f.x,f.y,gx,gy,b,22))continue;
+      const C=[[b.x-50,b.y-50],[b.x+b.w+50,b.y-50],[b.x-50,b.y+b.h+50],[b.x+b.w+50,b.y+b.h+50]].filter(c=>Math.hypot(c[0]-f.x,c[1]-f.y)>40&&!segRect(f.x,f.y,c[0],c[1],b,8));
+      if(!C.length)continue;C.sort((p,q)=>Math.hypot(p[0]-f.x,p[1]-f.y)+Math.hypot(p[0]-gx,p[1]-gy)-Math.hypot(q[0]-f.x,q[1]-f.y)-Math.hypot(q[0]-gx,q[1]-gy));return C[0]}
+    return[gx,gy]}
+  function route(f,gx,gy){
+    if(!W.blds||!W.blds.length)return[gx,gy];
+    const bf=bldAt(f.x,f.y,-4),bg=bldAt(gx,gy,-4);
+    if(bf&&bf!==bg){const d=doorPts(bf);if(d){if(Math.hypot(f.x-d.cx,f.y-d.cy)<78||Math.hypot(f.x-d.ix,f.y-d.iy)<30)return[d.ox,d.oy];return[d.ix,d.iy]}}
+    if(bg&&bg!==bf){const d=doorPts(bg);if(d){if(Math.hypot(f.x-d.cx,f.y-d.cy)<78||Math.hypot(f.x-d.ox,f.y-d.oy)<30)return[d.ix,d.iy];return around(f,d.ox,d.oy)}}
+    return bf?[gx,gy]:around(f,gx,gy);
+  }
+  function steer(f,gx,gy,dt){   /* walk toward a point (through doors), sidestepping when stuck on a wall */
+    [gx,gy]=route(f,gx,gy);
     const a=f.ai,inp=f.inp,dx=gx-f.x,dy=gy-f.y,d=Math.hypot(dx,dy)||1;let mx=dx/d,my=dy/d;
     if(a.unst>0){a.unst-=dt;mx=a.ux;my=a.uy}
     a.lt+=dt;if(a.lt>=.7){if(d>30&&Math.hypot(f.x-a.lx,f.y-a.ly)<12){const r=rn()<.5?1:-1;a.ux=-my*r+(rn()-.5)*.6;a.uy=mx*r+(rn()-.5)*.6;a.unst=.8}a.lx=f.x;a.ly=f.y;a.lt=0}
@@ -3647,7 +3699,7 @@ function arenaGame(box,win,opts){
       const pay=(c,fn)=>{if(P<c){if(me)say('Not enough points',1.2);return}f.pts-=c;fn();if(me)AUD.sfx('coin')};
       if(k==='z')pay(40,()=>{for(const a in f.am)f.am[a]=Math.min(CAP[a],f.am[a]+AMMOPACK[a]*2)});
       else if(k==='x')pay(40,()=>{f.hp=100;f.sh=Math.max(f.sh,25)});
-      else if(k==='c'){const L=['smg','shotgun','rifle','sniper'],cost=[100,150,250,400],cur=Math.max(-1,...f.g.filter(Boolean).map(g=>L.indexOf(g.t))),i=cur+1;if(i>=L.length){if(me)say('You already have the best gun',1.2);return}
+      else if(k==='c'){const L=['smg','shotgun','carbine','ak','lmg','minigun'],cost=[100,150,220,300,420,600],cur=Math.max(-1,...f.g.filter(Boolean).map(g=>L.indexOf(g.t))),i=cur+1;if(i>=L.length){if(me)say('You already have the best gun',1.2);return}
         pay(cost[i],()=>{const G=GUNS[L[i]],g={t:L[i],tr:0,m:G.mag},s=f.g.slice(0,3).findIndex(x=>!x);if(s>=0){f.g[s]=g;f.cur=s}else f.g[f.cur]=g;f.am[G.ammo]=Math.min(CAP[G.ammo],f.am[G.ammo]+AMMOPACK[G.ammo]*2)})}
       else if(k==='v'){if(TU.filter(t=>t.o===f.id).length>=3){if(me)say('Three turrets each',1.2);return}pay(200,()=>TU.push({id:zid++,x:f.x+Math.cos(f.a)*50,y:f.y+Math.sin(f.a)*50,hp:150,o:f.id,cd:0,a:f.a}))}
       else if(k==='b'&&MODE==='stand'){
@@ -3689,8 +3741,8 @@ function arenaGame(box,win,opts){
   };
   /* ---------- Gun Game: every kill gives you the next gun ---------- */
   /* 20 levels: every kill hands you the next gun on the ladder, and the Golden Gun finishes it */
-  const LAD=[['pistol',0],['revolver',0],['uzi',0],['smg',1],['p90',1],['tommy',1],['shotgun',1],['dbarrel',1],['autoshot',2],['rifle',2],['ak',2],['scar',2],
-    ['lmg',2],['minigun',3],['laser',3],['flame',3],['dmr',3],['sniper',3],['crossbow',3],['railgun',3],['deagle',3],['gold',3]];
+  const LAD=[['pistol',0],['blaster',0],['revolver',0],['uzi',0],['compact',1],['smg',1],['p90',1],['tommy',1],['shotgun',1],['sawedoff',1],['dbarrel',1],['autoshot',2],['carbine',2],['rifle',2],['ak',2],['scar',2],
+    ['plasma',2],['lmg',2],['minigun',3],['nailgun',3],['laser',3],['flame',3],['semi',3],['dmr',3],['sniper',3],['heavysn',3],['crossbow',3],['railgun',3],['deagle',3],['gold',3]];
   const gunPlug={
     setup(){FS.forEach(f=>{f.lv=0;gunPlug.give(f)});for(const it of [...items.values()])if(it.k==='gun'||it.k==='ammo')items.delete(it.id)},
     give(f){const L=LAD[Math.min(f.lv||0,LAD.length-1)];f.g=[{t:L[0],tr:L[1],m:GUNS[L[0]].mag},null,null,null];f.cur=0;f.am={light:99,med:99,shell:99,heavy:99};f.rl=0},
