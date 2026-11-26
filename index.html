@@ -2875,9 +2875,9 @@ const arZonePlan={
   tour:{r0:2300,steps:[[55,170,50,7]]}};
 
 /* bots come in four skill tiers, so every match has a mix of easy and hard opponents */
-const BOT_TIERS=[['Rookie','#c08a5a',.36,.5,25],['Regular','#c9d1e0',.55,.68,35],['Skilled','#f2c13d',.71,.83,27],['Elite','#7fe3ff',.86,.95,13]];
+const BOT_TIERS=[['Rookie','#c08a5a',.5,.6,20],['Regular','#c9d1e0',.64,.74,35],['Skilled','#f2c13d',.77,.86,30],['Elite','#7fe3ff',.89,.97,15]];
 function botSkill(r){r=r||Math.random;let x=r()*100;for(const t of BOT_TIERS){if((x-=t[4])<0)return t[2]+r()*(t[3]-t[2])}return .6}
-const botTier=sk=>sk>=.85?3:sk>=.7?2:sk>=.54?1:0;
+const botTier=sk=>sk>=.88?3:sk>=.76?2:sk>=.62?1:0;
 function soloRoster(mode,pool){
   const me={name:user,...myLook(),me:true,bot:false};
   const SK=()=>botSkill(),out=[];
@@ -2975,7 +2975,7 @@ function arenaGame(box,win,opts){
     const m=curMatch();matchNo++;newWorld();
     const ds=[defs[m.a],defs[m.b]];setupFighters(ds);FS.forEach((f,i)=>spawnFor(f,i));
     ST.t=0;ST.phase='count';ST.cd=3;T.phase='fight';
-    ST.ff=ds.some(d=>!d.bot)?1:2.4;
+    ST.ff=1;
     ev('ms',matchNo,m.a,m.b);say(defs[m.a].name+'  vs  '+defs[m.b].name,3);sendBracket();
   }
   function endMatch(wid){
@@ -2988,7 +2988,7 @@ function arenaGame(box,win,opts){
     if(PL&&PL.fire&&PL.fire(f))return;
     const g=f.g[f.cur];if(!g||f.cd>0||f.rl>0||f.st!=='ground'||!f.alive||ST.phase==='count')return;
     if(g.m<=0){startReload(f);return}
-    const dull=f.bot&&MODE!=='surv'&&MODE!=='hide',G=GUNS[g.t],dmg=G.d*(1+.15*g.tr)*(dull?.5:1);f.cd=1/(G.rate*(1+.05*g.tr))*(dull?1.7:1);g.m--;
+    const dull=false,G=GUNS[g.t],dmg=G.d*(1+.15*g.tr)*(dull?.5:1);f.cd=1/(G.rate*(1+.05*g.tr))*(dull?1.7:1);g.m--;
     for(let i=0;i<G.pel;i++){const a=f.a+(rn()-.5)*2*G.spr*(dull?2.8:1);BU.push({id:bid++,x:f.x+Math.cos(a)*24,y:f.y+Math.sin(a)*24,vx:Math.cos(a)*G.sp,vy:Math.sin(a)*G.sp,l:G.rg,o:f.id,tm:f.team,d:dmg,k:g.t})}
     sfxNear('throw',f.x,f.y);if(g.m<=0)startReload(f);
   }
@@ -3066,7 +3066,7 @@ function arenaGame(box,win,opts){
       if(tg&&(tg.alive||tg.hp>0)){inp.a=aimAt(f,tg)+(a.aimE||0);if(G&&g.m>0&&ST.t-a.seen>react(f)){const d=Math.hypot(tg.x-f.x,tg.y-f.y);if(d<G.rg*.95&&burstOk(f,a,d,G,dt))inp.f=1}}
       return}
     a.t=.12+rn()*.08;
-    let tg=null,td=1e9;const sight=MODE==='surv'?1100:560+f.skill*340;
+    let tg=null,td=1e9;const sight=MODE==='surv'?1100:680+f.skill*380;
     for(const o of FS){if(o===f||!o.alive||o.st!=='ground'||(TEAMM.includes(MODE)&&o.team===f.team))continue;const d=Math.hypot(o.x-f.x,o.y-f.y);if(d<td&&d<sight&&arLos(W,f.x,f.y,o.x,o.y)){tg=o;td=d}}
     if(MODE==='surv'||MODE==='stand'){for(const z of ZB){const d=Math.hypot(z.x-f.x,z.y-f.y);if(d<td&&d<1100&&arLos(W,f.x,f.y,z.x,z.y)){tg=z;td=d}}}
     {const tid=tg?(tg.t?100000+tg.id:tg.id):-1;if(tg&&a.tgt!==tid)a.seen=ST.t;a.tgt=tid}
@@ -3126,9 +3126,9 @@ function arenaGame(box,win,opts){
   function aimAt(f,tg){   /* lead a moving target: better bots predict where it will be when the bullet gets there */
     const g=f.g[f.cur],G=g&&GUNS[g.t],sp=G?G.sp:1200,d=Math.hypot(tg.x-f.x,tg.y-f.y),tt=d/sp*Math.min(1,f.skill*1.1);
     const vx=Math.max(-400,Math.min(400,tg.vx||0)),vy=Math.max(-400,Math.min(400,tg.vy||0));return Math.atan2(tg.y+vy*tt-f.y,tg.x+vx*tt-f.x)}
-  const react=f=>.12+(1-f.skill)*.65;
+  const react=f=>.08+(1-f.skill)*.4;
   function burstOk(f,a,d,G,dt){   /* weaker bots hold the trigger and spray; better ones tap at long range */
-    if(G.rate<5||d<G.rg*.45)return true;a.bt=(a.bt||0)+dt;const on=.35+f.skill*.25,off=.12+f.skill*.18;if(a.bt>on+off)a.bt=0;return f.skill<.5||a.bt<on}
+    if(G.rate<5||d<G.rg*.45)return true;a.bt=(a.bt||0)+dt;const on=.35+f.skill*.25,off=.12+f.skill*.18;if(a.bt>on+off)a.bt=0;return true}
   /* ----- the simulation (solo player or room host) ----- */
   const caps=[0,0],wins={},capN={};let tourOut=null;
   function respawnCtf(f){if(PL&&PL.respawn){PL.respawn(f);return}f.alive=true;f.hp=100;f.sh=0;f.st='ground';f.rl=0;f.cd=0;spawnFor(f,0);if(f.ai){f.ai.land=null;f.ai.role=rn()<.35?1:0}}
@@ -3197,7 +3197,7 @@ function arenaGame(box,win,opts){
     else if(MODE==='tour')tourStep(dt);
     else if(MODE==='br'){
       if(!bus&&!FS.some(f=>f.st==='bus'||f.st==='air')||ST.t>12){const a=alive();if(new Set(a.map(f=>f.team)).size<=1&&ST.t>6)finishGame()}
-      ST.ff=humansAlive()?1:3;
+      ST.ff=1;   /* no fast-forward, even when only bots are left */
     }
     if(PL&&PL.step)PL.step(dt);
     /* send state to everyone else */
