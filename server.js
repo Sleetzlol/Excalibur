@@ -926,11 +926,61 @@ if(x.open)for(const[a,l2]of[['dismiss','Dismiss'],['mute','Mute 1h'],['ban','Sus
 b.onclick=async()=>{await fetch('/admin/report?token='+encodeURIComponent(t)+'&id='+x.id+'&action='+a,{method:'POST'});load()};d.append(b)}
 o.append(d)}}
 </script>`;
+/* ---------- the game library: game folders, thumbnails and tab icons, served from the site ----------
+   games.json (next to server.js, or in GAMES_DIR) lists the games. Only the folders it names and the icons folder are served,
+   so server.js, the data folder and everything else stay private. */
+const LIB=path.resolve(process.env.GAMES_DIR||__dirname);
+const MIME={html:'text/html; charset=utf-8',htm:'text/html; charset=utf-8',js:'text/javascript; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',json:'application/json; charset=utf-8',
+  txt:'text/plain; charset=utf-8',xml:'application/xml',csv:'text/csv',md:'text/plain; charset=utf-8',webmanifest:'application/manifest+json',
+  png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',avif:'image/avif',svg:'image/svg+xml',ico:'image/x-icon',bmp:'image/bmp',
+  mp3:'audio/mpeg',ogg:'audio/ogg',oga:'audio/ogg',wav:'audio/wav',flac:'audio/flac',m4a:'audio/mp4',aac:'audio/aac',mp4:'video/mp4',webm:'video/webm',ogv:'video/ogg',
+  wasm:'application/wasm',swf:'application/x-shockwave-flash',ttf:'font/ttf',otf:'font/otf',woff:'font/woff',woff2:'font/woff2',glb:'model/gltf-binary',gltf:'model/gltf+json'};
+const NEVER=new Set(['data','.git','node_modules','server.js','package.json','package-lock.json','.env','render.yaml','supabase.sql','README.md']);
+let libCache={at:0,games:[],dirs:new Set(['icons'])};
+function library(){
+  if(Date.now()-libCache.at<15e3)return libCache;
+  const dirs=new Set(['icons']);let games=[],err='';
+  try{const j=JSON.parse(fs.readFileSync(path.join(LIB,'games.json'),'utf8'));
+    games=(Array.isArray(j)?j:j.games||[]).filter(x=>x&&typeof x.path==='string'&&typeof x.name==='string').slice(0,500).map(x=>({
+      id:String(x.id||x.name).toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40),name:String(x.name).slice(0,60),path:String(x.path).replace(/^\/+/,''),
+      thumb:typeof x.thumb==='string'?x.thumb.replace(/^\/+/,''):'',desc:typeof x.desc==='string'?x.desc.slice(0,200):'',cat:typeof x.cat==='string'?x.cat.slice(0,24):'Arcade',tags:Array.isArray(x.tags)?x.tags.slice(0,10).map(String):[]}));
+    for(const f of Array.isArray(j.folders)?j.folders.slice(0,50):[]){const top=String(f).replace(/^\/+|\/+$/g,'').split('/')[0];if(top&&!NEVER.has(top)&&!top.startsWith('.'))dirs.add(top)}   /* extra folders the games load from */
+    for(const g of games)for(const f of[g.path,g.thumb]){const top=f.split('/')[0];if(top&&f.includes('/')&&!NEVER.has(top)&&!top.startsWith('.'))dirs.add(top)}}
+  catch(e){err=e.code==='ENOENT'?'':e.message}
+  libCache={at:Date.now(),games,dirs,err};return libCache}
+function iconList(){try{return fs.readdirSync(path.join(LIB,'icons')).filter(f=>/\.(ico|png|svg|gif|jpe?g|webp)$/i.test(f)).sort().slice(0,200)}catch(e){return[]}}
+/* streams a file with caching (ETag, 304), byte ranges for audio and video, and the right content type */
+function sendFile(req,res,file,st){
+  const ext=path.extname(file).slice(1).toLowerCase(),type=MIME[ext]||'application/octet-stream',etag='W/"'+st.size.toString(36)+'-'+Math.floor(st.mtimeMs).toString(36)+'"';
+  const h={'Content-Type':type,'ETag':etag,'Last-Modified':st.mtime.toUTCString(),'Accept-Ranges':'bytes','Cache-Control':/^html?$/.test(ext)?'no-cache':'public, max-age=86400'};
+  if(req.headers['if-none-match']===etag){res.writeHead(304,h);return res.end()}
+  let start=0,end=st.size-1,code=200;const rg=/^bytes=(\d*)-(\d*)$/.exec(req.headers.range||'');
+  if(rg&&st.size){if(rg[1]===''){start=Math.max(0,st.size-(+rg[2]||0))}else{start=+rg[1];if(rg[2]!=='')end=Math.min(end,+rg[2])}
+    if(start>end||start>=st.size){res.writeHead(416,{'Content-Range':'bytes */'+st.size});return res.end()}code=206;h['Content-Range']='bytes '+start+'-'+end+'/'+st.size}
+  h['Content-Length']=st.size?end-start+1:0;res.writeHead(code,h);
+  if(req.method==='HEAD'||!st.size)return res.end();
+  const rs=fs.createReadStream(file,{start,end});rs.on('error',()=>res.destroy());rs.pipe(res)}
+function serveLib(req,res,p){
+  let rel;try{rel=decodeURIComponent(p).replace(/^\/+/,'')}catch(e){return false}
+  if(!rel||rel.includes('\0')||rel.includes('\\'))return false;
+  const parts=rel.split('/');if(parts.some(x=>x==='..'||x==='.'||x.startsWith('.')))return false;
+  if(!library().dirs.has(parts[0]))return false;
+  const file=path.resolve(LIB,rel);if(!file.startsWith(LIB+path.sep))return false;
+  fs.stat(file,(e,st)=>{
+    if(e){res.writeHead(404,{'Content-Type':'text/plain'});return res.end('not found')}
+    if(st.isDirectory()){if(!p.endsWith('/')){res.writeHead(301,{Location:p+'/'});return res.end()}
+      const idx=path.join(file,'index.html');return fs.stat(idx,(e2,st2)=>{if(e2){res.writeHead(404);return res.end('not found')}sendFile(req,res,idx,st2)})}
+    sendFile(req,res,file,st)});
+  return true}
 const secure=res=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer')};
 const server=http.createServer((req,res)=>{
   secure(res);const u=new URL(req.url,'http://x'),p=u.pathname;
   if(p==='/healthz'){res.writeHead(200,{'Content-Type':'text/plain'});return res.end('ok')}
   if(p.startsWith('/clip/'))return clipServe(res,p.slice(6).replace(/[^0-9a-f]/g,''));
+  if(p==='/games.json'){const L=library();res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-cache'});return res.end(JSON.stringify({games:L.games,err:L.err||undefined}))}
+  if(p==='/icons.json'){res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-cache'});return res.end(JSON.stringify({icons:iconList()}))}
+  if(p==='/favicon.ico'){const f=path.join(LIB,'favicon.ico');return fs.stat(f,(e,st)=>{if(e){res.writeHead(404);return res.end()}sendFile(req,res,f,st)})}
+  if((req.method==='GET'||req.method==='HEAD')&&serveLib(req,res,p))return;
   if(p.startsWith('/admin/')&&ADMIN){
     const tok=u.searchParams.get('token')||'',a=Buffer.from(tok),b=Buffer.from(ADMIN);
     if(a.length!==b.length||!crypto.timingSafeEqual(a,b)){res.writeHead(403);return res.end('no')}

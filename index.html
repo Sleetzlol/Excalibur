@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0b1020">
-<title>Excalibur V2</title>
+<title>Excalibur</title>
+<link rel="icon" href="/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
 
@@ -553,6 +554,22 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
 .wbar .wppl[hidden]{display:none}
 .win.page.playing .wbar{display:flex;align-items:center}
 @media (max-width:640px){.pmgrid{grid-template-columns:1fr}}
+
+/* game library: thumbnail cards and full-page game frames */
+.card .art.thumb{padding:0;font-size:0}
+.card .art.thumb::before{display:none}
+.card .art.thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s}
+.card:hover .art.thumb img{transform:scale(1.05)}
+.win.page.framed .wbody{padding:0;overflow:hidden}
+.win.page.framed .wframe{border-radius:0;display:block}
+/* settings */
+.setgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin:10px 0}
+.seticon{aspect-ratio:1;background:var(--panel2);border:1px solid var(--line);border-radius:12px;display:grid;place-items:center;cursor:pointer;padding:8px}
+.seticon img{width:32px;height:32px;object-fit:contain}
+.seticon.on{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset}
+.setprev{display:flex;align-items:center;gap:10px;background:#dfe3ea;color:#222;border-radius:10px 10px 0 0;padding:8px 12px;max-width:260px;font:13px system-ui,sans-serif}
+.setprev img{width:16px;height:16px}
+.setprev span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 /* ban page: a banned account can sign in, but sees only this */
 .banpage{position:fixed;inset:0;z-index:9000;background:radial-gradient(ellipse at top,#2a1220,#0b0d16 70%);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 .banpage .bcard{width:100%;max-width:520px;background:#141827;border:1px solid #3a2232;border-radius:18px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
@@ -589,6 +606,7 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
     <button data-v="chat">💬 Chat</button>
     <button data-v="friends">👥 Friends</button>
     <button data-v="account">🔑 Account</button>
+    <button data-v="settings">⚙️ Settings</button>
     <button data-v="admin" id="navadmin" hidden>🛠 Admin</button>
     <div class="me"><strong id="uname"></strong><span id="ucap">Click your name to change it</span>
       <div class="lv"><span id="lvl"></span><div class="xp"><div id="xpb"></div></div></div></div>
@@ -811,6 +829,7 @@ function render(){
   if(view==='chat')return renderChat(v);
   if(view==='friends')return renderFriends(v);
   if(view==='account')return renderAccount(v);
+  if(view==='settings')return renderSettings(v);
   if(view==='admin')return renderAdmin(v);
   if(view.startsWith('info:'))return renderInfo(v,GAMES.find(g=>g.id===view.slice(5)));
 }
@@ -844,12 +863,13 @@ function renderGames(v){
   const grid=el('div','grid');
   GAMES.filter(g=>(cat==='All'||g.cat===cat)&&g.name.toLowerCase().includes(q)).forEach((g,i)=>{
     const c=el('button','card'+(g.soon?' soon':''));c.style.setProperty('--i',i);c.style.setProperty('--h',g.hue||220);
-    c.innerHTML=`<div class="art" style="background:linear-gradient(135deg,hsl(${g.hue||220} 55% 32%),hsl(${(g.hue||220)+40} 60% 18%))">${g.ico||g.name[0]}</div>
+    c.innerHTML=`<div class="art${g.thumb?' thumb':''}" style="background:linear-gradient(135deg,hsl(${g.hue||220} 55% 32%),hsl(${(g.hue||220)+40} 60% 18%))">${g.thumb?'<img loading="lazy" alt="">':(g.ico||g.name[0])}</div>
       <div class="txt"><strong></strong><span></span><br><i class="tag" style="font-style:normal"></i></div>`;
     c.querySelector('strong').textContent=g.name;
     c.querySelector('span').textContent=g.desc;
     c.querySelector('.tag').textContent=g.soon?'Coming soon':g.cat;
-    if(!g.soon)c.onclick=()=>go('info:'+g.id);
+    if(g.thumb){const im=c.querySelector('.art img');im.src=g.thumb;im.onerror=()=>{im.remove();c.querySelector('.art').classList.remove('thumb');c.querySelector('.art').textContent=g.name[0]}}
+    if(!g.soon)c.onclick=()=>g.lib?openGame(g):go('info:'+g.id);
     grid.append(c);
   });
   if(!grid.children.length)v.append(el('p','sub','No games match that search.'));
@@ -2210,7 +2230,13 @@ function openGame(g){
   const box=w.el.querySelector('.wzoomer');
   document.body.classList.add('in-game');
   document.body.append(w.el);WM.wins.push(w);focusWin(w);
-  if(g.src){const f=el('iframe');f.src=g.src;f.title=g.name;f.allow='fullscreen';f.className='wframe';box.append(f)}
+  if(g.src){w.el.classList.add('framed');const f=el('iframe');f.src=g.src;f.title=g.name;f.allow='fullscreen; autoplay; gamepad; clipboard-write';f.className='wframe';
+    /* V1 game pages carry their own header, stars and footer around a .game-box: hide them so the game fills the page */
+    const fit=()=>{try{const d=f.contentDocument;if(!d||!d.head||d.location.href==='about:blank'||d.getElementById('xfit'))return!!(d&&d.getElementById('xfit'));
+      const st=d.createElement('style');st.id='xfit';st.textContent='body>header,#constellation,body>.footer,body>.center-text{display:none!important}.game-box{position:fixed!important;inset:0!important;top:0!important;left:0!important;width:100%!important;height:100%!important;transform:none!important;border:0!important;border-radius:0!important;margin:0!important}html,body{overflow:hidden!important}';
+      d.head.append(st);return true}catch(e){return true}};
+    let tries=0;const iv=setInterval(()=>{if(fit()||++tries>200)clearInterval(iv)},25);
+    f.onload=()=>{fit();try{f.focus()}catch(e){}};box.append(f);REW.bump('play')}
   else if(g.builtin==='flip')flipGame(box);
   else if(g.builtin==='lobby')w.stop=lobbyGame(box,w);
   else if(g.builtin==='parkour'||AR[g.builtin]){REW.bump('play');
@@ -6462,6 +6488,56 @@ const ACW={m:new Map(),
     o.f=o.f.filter(t=>now-t<15e3);o.j=o.j.filter(t=>now-t<20e3);
     if((o.f.length>=8||o.j.length>=5)&&now-o.sent>6e5){o.sent=now;const fast=o.f.length>=8;
       NET.sendRaw({t:'ac.suspect',target:pid,why:fast?'moving too fast':'teleporting',detail:fast?o.f.length+' times faster than '+Math.round(maxV)+'/s in 15 s':o.j.length+' jumps in 20 s'});o.f=[];o.j=[]}}};
+/* ---------- Game library: games.json on the site lists the game folders; each opens full page in a frame ---------- */
+const LIBG={loaded:false,err:''};
+async function libLoad(){
+  if(!/^https?:$/.test(location.protocol))return;
+  try{const r=await fetch('/games.json',{cache:'no-cache'});if(!r.ok)return;const j=await r.json();
+    for(const x of j.games||[]){if(GAMES.some(g=>g.id==='lib-'+x.id))continue;
+      GAMES.push({id:'lib-'+x.id,name:x.name,cat:x.cat||'Arcade',desc:x.desc||'',src:'/'+x.path,thumb:x.thumb?'/'+x.thumb:'',lib:true,ico:'🎮',hue:(x.name.length*47)%360,tags:x.tags||[]})}
+    LIBG.loaded=true;LIBG.err=j.err||'';if(view==='games')render()}catch(e){LIBG.err=String(e.message||e)}}
+
+/* ---------- Tab disguise: your own tab name and icon, kept in this browser ---------- */
+const CLOAK={
+  get title(){return store.get('cloak_title','')||''},get icon(){return store.get('cloak_favicon','')||''},
+  docs(){const out=[document];try{if(window.top!==window&&window.top.document&&window.top.document.body&&window.top.EXCALIBUR_WRAP)out.push(window.top.document)}catch(e){}return out},
+  apply(){const t=CLOAK.title||'Excalibur',ic=CLOAK.icon||'/favicon.ico';
+    for(const d of CLOAK.docs()){d.title=t;let l=d.querySelector('link[rel~="icon"]');if(!l){l=d.createElement('link');l.rel='icon';d.head.append(l)}l.href=/^(data:|https?:)/.test(ic)?ic:new URL(ic,location.href).href}},
+  set(title,icon){store.set('cloak_title',String(title||'').slice(0,80));store.set('cloak_favicon',String(icon||''));CLOAK.apply()},
+  reset(){store.set('cloak_title','');store.set('cloak_favicon','');CLOAK.apply()}
+};
+/* opens the site inside an about:blank tab: the address bar shows about:blank and the site runs in a full-page frame */
+function openBlank(){
+  const w=window.open('about:blank','_blank');if(!w){toast('Your browser blocked the new tab. Allow pop-ups for this site and try again.');return false}
+  const url=location.origin+location.pathname,t=CLOAK.title||'Excalibur',ic=new URL(CLOAK.icon&&!/^data:/.test(CLOAK.icon)?CLOAK.icon:'/favicon.ico',location.href).href;
+  const d=w.document;d.open();d.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title></title><link rel="icon"></head><body style="margin:0;background:#050a24;overflow:hidden"></body></html>');d.close();
+  d.title=t;d.querySelector('link').href=/^data:/.test(CLOAK.icon)?CLOAK.icon:ic;w.EXCALIBUR_WRAP=true;
+  const f=d.createElement('iframe');f.src=url;f.allow='fullscreen; autoplay; microphone; gamepad; clipboard-write; clipboard-read';f.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0';d.body.append(f);
+  return true}
+function renderSettings(v){
+  v.append(el('h1','','Settings'),el('p','sub','Make the tab look the way you like, or open the site in a blank tab.'));
+  /* tab name and icon */
+  const p=el('div','panel');p.style.maxWidth='760px';p.append(el('h2','','Tab name and icon'));
+  const prev=el('div','setprev'),pimg=el('img'),pt=el('span');prev.append(pimg,pt);
+  const ti=el('input','num');ti.placeholder='Tab name (empty: Excalibur)';ti.maxLength=80;ti.style.width='100%';ti.value=CLOAK.title;ti.setAttribute('aria-label','Tab name');
+  let icon=CLOAK.icon;const upd=()=>{pt.textContent=ti.value||'Excalibur';pimg.src=icon||'/favicon.ico';grid.querySelectorAll('.seticon').forEach(b=>b.classList.toggle('on',b.dataset.ic===icon))};
+  ti.oninput=upd;
+  const grid=el('div','setgrid'),def=el('button','seticon');def.dataset.ic='';def.title='Excalibur (default)';const di=el('img');di.src='/favicon.ico';def.append(di);def.onclick=()=>{icon='';upd()};grid.append(def);
+  fetch('/icons.json',{cache:'no-cache'}).then(r=>r.json()).then(j=>{for(const f of j.icons||[]){const b=el('button','seticon');b.dataset.ic='/icons/'+f;b.title=f.replace(/\.[a-z]+$/i,'').replace(/[-_]+/g,' ');const im=el('img');im.src='/icons/'+encodeURIComponent(f);im.alt='';b.append(im);b.onclick=()=>{icon=b.dataset.ic;upd()};grid.append(b)}upd()}).catch(()=>{});
+  const own=el('label','btn alt');own.textContent='Use my own icon…';const fi=document.createElement('input');fi.type='file';fi.accept='.ico,.png,.svg,.gif,.jpg,.jpeg,.webp,image/*';fi.hidden=true;own.append(fi);
+  fi.onchange=()=>{const f=fi.files[0];if(!f)return;if(f.size>200*1024)return toast('Pick an image under 200 KB');const r=new FileReader();r.onload=()=>{icon=String(r.result);upd()};r.readAsDataURL(f)};
+  const row=el('div','row'),ap=el('button','btn gold','Apply'),rs=el('button','btn alt','Reset');ap.onclick=()=>{CLOAK.set(ti.value.trim(),icon);toast('Tab updated')};rs.onclick=()=>{CLOAK.reset();ti.value='';icon='';upd();toast('Back to Excalibur')};
+  row.append(ap,rs,own);
+  p.append(el('div','note','Preview'),prev,el('div','note','Name'),ti,el('div','note','Icon (add your own .ico or .png files to the site\'s icons folder to see them here)'),grid,row);v.append(p);upd();
+  /* about:blank */
+  const q=el('div','panel');q.style.cssText='max-width:760px;margin-top:14px';q.append(el('h2','','Open in about:blank'));
+  q.append(el('p','note','Opens Excalibur in a new tab whose address is about:blank, with the tab name and icon above. The site runs inside it, the same as here.'));
+  const ob=el('button','btn gold','Open in about:blank');ob.onclick=()=>{if(openBlank())toast('Opened in a new tab')};
+  q.append(ob);if(window.top!==window)q.append(el('p','note','You are already inside an about:blank tab.'));v.append(q);
+  /* library status */
+  const lg=el('div','panel');lg.style.cssText='max-width:760px;margin-top:14px';lg.append(el('h2','','Game library'));
+  const n=GAMES.filter(g=>g.lib).length;lg.append(el('p','note',n?n+' games from the site\'s games.json.':LIBG.err?'games.json has a problem: '+LIBG.err:'No library games yet: add a games.json next to server.js.'));v.append(lg);
+}
 /* ---------- Anti-cheat: integrity checks inside the page ----------
    A determined cheater can strip these out, so they only report (the server saves a replay for staff); they never punish.
    They catch the usual tricks: typing into the console to change coins or staff effects, calling game functions from the
@@ -7284,7 +7360,7 @@ function leaveTitle(v){document.body.classList.remove('on-title');T.classList.ad
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>leaveTitle(b.dataset.go));
 $('#home').onclick=showTitle;$('#homeM').onclick=showTitle;
 
-setUser();drawLv();setCoins(coins);render();showTitle();INTEG.start();
+setUser();drawLv();setCoins(coins);render();showTitle();INTEG.start();CLOAK.apply();libLoad();
 AUD.ui();AUD.music('hub');
 </script>
 </body>

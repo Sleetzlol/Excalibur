@@ -1,0 +1,73 @@
+{
+  "folders": [
+    "js"
+  ],
+  "games": [
+    {
+      "name": "Gun Mayhem 2",
+      "path": "gunmayhem/gunmayhem.html",
+      "thumb": "gunmayhem/icon.png",
+      "cat": "Action"
+    },
+    {
+      "name": "Tiny Fishing",
+      "path": "tinyfishing/tinyfishing.html",
+      "thumb": "tinyfishing/icon.png",
+      "cat": "Casual"
+    },
+    {
+      "name": "Drift Boss",
+      "path": "drift-boss/driftboss.html",
+      "thumb": "drift-boss/icon.png",
+      "cat": "Racing"
+    },
+    {
+      "name": "Geometry Dash",
+      "path": "geometrydash/dash.html",
+      "thumb": "geometrydash/icon.png",
+      "cat": "Action"
+    },
+    {
+      "name": "BTD6",
+      "path": "btd6/btd6.html",
+      "thumb": "btd6/uwu.png",
+      "cat": "Strategy"
+    },
+    {
+      "name": "Jerry Lawson's 82nd Birthday Doodle",
+      "path": "lawson/lawson.html",
+      "thumb": "lawson/jerry-lawsons-82nd-birthday-6753651837109552.3-l.png",
+      "cat": "Casual"
+    },
+    {
+      "name": "Stick War",
+      "path": "Stickwar/stick.html",
+      "thumb": "Stickwar/icon.png",
+      "cat": "Strategy"
+    },
+    {
+      "name": "Poly Track",
+      "path": "polytrack/poly.html",
+      "thumb": "polytrack/icon.png",
+      "cat": "Racing"
+    },
+    {
+      "name": "Five Nights at Epstein's",
+      "path": "fnae/fnae.html",
+      "thumb": "fnae/icon.png",
+      "cat": "Horror"
+    },
+    {
+      "name": "Yohoho.io",
+      "path": "cookieclicker/cc.html",
+      "thumb": "cookieclicker/icon.png",
+      "cat": "Action"
+    },
+    {
+      "name": "Cookie Clicker",
+      "path": "realcookieclicker/index.html",
+      "thumb": "realcookieclicker/icon.png",
+      "cat": "Casual"
+    }
+  ]
+}
