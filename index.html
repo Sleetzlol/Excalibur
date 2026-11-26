@@ -542,6 +542,7 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
 .pmrow{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 10px;margin-bottom:6px;font:inherit;cursor:pointer;min-height:48px}
 .pmrow:hover{border-color:var(--gold)}
 .pmrow canvas{width:36px;height:36px;flex:none}
+.rpwrap{margin-top:8px}.rpcv{width:100%;aspect-ratio:16/9;border-radius:10px;background:#0a0f22;display:block}.rpctl{margin-top:6px;align-items:center;flex-wrap:nowrap}
 .wbar .wppl{order:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;height:32px;padding:0 11px;margin-right:6px;font:700 13px var(--head);color:#fff;background:rgba(8,12,34,.55);border:1px solid rgba(255,255,255,.2);border-radius:10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .wbar .wppl[hidden]{display:none}
 .win.page.playing .wbar{display:flex;align-items:center}
@@ -6409,7 +6410,7 @@ function flipGame(box){
 /* ---------- Accounts, wallet, friends, gifts and global chat (all through the server) ---------- */
 /* ---------- Anti-cheat ----------
    ACW watches other players' positions as they arrive. Moving much faster than the game allows, again and again, or teleporting
-   over and over, tells the server, which can then record that player's game screen for staff to review. It never punishes by itself. */
+   over and over, tells the server, which then saves a replay of the room for staff to review. It never punishes by itself. */
 const ACW={m:new Map(),
   see(pid,x,y,maxV,tp){const now=performance.now();let o=ACW.m.get(pid);if(!o){ACW.m.set(pid,{x,y,t:now,f:[],j:[],sent:-1e9});return}
     const dt=(now-o.t)/1000;if(dt<.05)return;const d=Math.hypot(x-o.x,y-o.y);o.x=x;o.y=y;o.t=now;if(dt>1.5)return;
@@ -6417,23 +6418,6 @@ const ACW={m:new Map(),
     o.f=o.f.filter(t=>now-t<15e3);o.j=o.j.filter(t=>now-t<20e3);
     if((o.f.length>=8||o.j.length>=5)&&now-o.sent>6e5){o.sent=now;const fast=o.f.length>=8;
       NET.sendRaw({t:'ac.suspect',target:pid,why:fast?'moving too fast':'teleporting',detail:fast?o.f.length+' times faster than '+Math.round(maxV)+'/s in 15 s':o.j.length+' jumps in 20 s'});o.f=[];o.j=[]}}};
-/* ACREC records only the game's own canvas (never the camera, the microphone or other tabs) when the server asks */
-const ACREC={busy:false,
-  pick(){let best=null,ba=0;for(const c of document.querySelectorAll('.win canvas, .win.page canvas')){const r=c.getBoundingClientRect();const a=r.width*r.height;if(a>ba&&r.width>80&&c.isConnected){ba=a;best=c}}return best},
-  start(m){if(ACREC.busy||!m||!m.id)return;const fail=err=>{ACREC.busy=false;NET.sendRaw({t:'ac.fail',id:m.id,err})};
-    if(typeof MediaRecorder==='undefined')return fail('this browser cannot record');ACREC.busy=true;
-    const t0=performance.now(),want=Math.min(30,+m.secs||30)*1000;
-    const wait=()=>{const cv=ACREC.pick();if(cv)return go(cv);if(performance.now()-t0>want)return fail('not playing a game');setTimeout(wait,1000)};
-    const go=cv=>{let st,rec;try{st=cv.captureStream(12);const types=['video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm'];const mt=types.find(x=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(x))||'';
-        rec=new MediaRecorder(st,mt?{mimeType:mt,videoBitsPerSecond:350000}:{videoBitsPerSecond:350000})}catch(e){return fail('could not record: '+e.message)}
-      const parts=[],r0=performance.now();rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data)};
-      rec.onstop=async()=>{try{st.getTracks().forEach(t=>t.stop())}catch(e){}const secs=(performance.now()-r0)/1000;const blob=new Blob(parts,{type:'video/webm'});
-        if(!blob.size)return fail('empty recording');if(blob.size>2.3e6)return fail('recording too big');
-        const b=new Uint8Array(await blob.arrayBuffer());const CH=18000;
-        for(let i=0;i<b.length;i+=CH){let bin='';const sub=b.subarray(i,i+CH);for(let k=0;k<sub.length;k++)bin+=String.fromCharCode(sub[k]);NET.sendRaw({t:'ac.chunk',id:m.id,d:btoa(bin)});await new Promise(r=>setTimeout(r,90))}
-        NET.sendRaw({t:'ac.done',id:m.id,secs});ACREC.busy=false};
-      rec.start(1000);const left=want-(performance.now()-t0);const iv=setInterval(()=>{if(!cv.isConnected||performance.now()-r0>Math.max(5000,left)){clearInterval(iv);try{rec.stop()}catch(e){}}},500)};
-    wait()}};
 const ACC=(()=>{
   let n=0,dt=0;const reqs=new Map(),subs=new Set();
   const blocked=new Map(store.get('blocked',[]).map(n=>[String(n).toLowerCase(),String(n)]));   /* lowercase name -> name as typed */
@@ -6461,7 +6445,6 @@ const ACC=(()=>{
     case'user.partyinv':partyInvite(m);break;
     case'user.partygo':{if(PARTY.cur&&PARTY.cur.leader===NET.id)break;const g=GAMES.find(x=>x.id===m.game);if(g){toast(m.leader+' started '+g.name);openGame(g)}break}
     case'user.ban':if(A.info){A.info.ban=m.ban;A.info.banInfo=m.info}banNow(m.ban);banPage(m.ban>Date.now()?m.info:null);break;
-    case'ac.rec':ACREC.start(m);break;
     case'user.fx':admApply(m.fx);break;
     case'user.poll':pollShow(m.poll);break;
     case'user.announce':annShow(m);break;
@@ -6603,6 +6586,82 @@ function voiceUI(win,s,ctxFn){
 /* ---------- Small dialogs ---------- */
 function modal(build){
   const o=el('div','gmodal'),b=el('div','gbox');o.append(b);const close=()=>o.remove();o.onclick=e=>{if(e.target===o)close()};document.body.append(o);build(b,close);return o;
+}
+/* ---------- Replay viewer: turns what the room saw (saved by the server) back into a moving picture, and can save it as a video ---------- */
+function replayView(data,flag){
+  const W=960,H=540,wrap=el('div','rpwrap'),cv=document.createElement('canvas');cv.width=W;cv.height=H;cv.className='rpcv';const cx=cv.getContext('2d');
+  const P=Object.assign({},data.players||{}),ev=data.ev||[],dur=Math.max(1000,(data.secs||30)*1000),SUS=data.sus;
+  const nameOf=id=>P[id]?P[id].name:'Player';
+  const tracks=new Map(),chat=[],notes=[],aims=[];
+  const tr=(k,meta)=>{let t=tracks.get(k);if(!t){t={...meta,pts:[]};tracks.set(k,t)}return t};
+  let roster=(data.init&&((data.init.go&&data.init.go.roster)||(data.init['e.go']&&data.init['e.go'].roster)))||null;
+  const hasSn=ev.some(e=>e[2]==='r'&&e[3]&&e[3][0]==='sn');
+  for(const e of ev){const t=e[0],from=e[1],ty=e[2],p=e[3];
+    if(ty==='j'){P[from]=p;notes.push([t,'➕ '+(p&&p.name)+' joined'])}
+    else if(ty==='l'){notes.push([t,'➖ '+nameOf(from)+' left']);const k=tracks.get(from);if(k)k.left=t}
+    else if(ty==='c')chat.push([t,nameOf(from),String(p)]);
+    else if(ty==='s'&&!hasSn)tr(from,{name:nameOf(from),look:P[from]||{},sus:from===SUS}).pts.push([t,p[0],p[1]]);
+    else if(ty==='r'&&p){const[name,,a]=p;
+      if((name==='go'||name==='e.go')&&a&&Array.isArray(a.roster))roster=a.roster;
+      else if(name==='sn'&&a&&Array.isArray(a.f)){for(const r of a.f){const R=roster&&roster[r[0]]||{};const k='f'+r[0];
+          tr(k,{name:R.name||(R.bot?'Bot':'#'+r[0]),look:R,sus:!!SUS&&R.pid===SUS,bot:!!R.bot}).pts.push([t,r[1],r[2],r[3],r[4],(r[6]&1)?1:0])}}
+      else if(name==='in'&&from===SUS&&a)aims.push([t,+a.a||0,!!a.f]);
+      else if(!hasSn&&a&&typeof a.x==='number'&&typeof a.y==='number')tr(from,{name:nameOf(from),look:P[from]||{},sus:from===SUS}).pts.push([t,a.x,a.y])}}
+  /* view: the whole area everyone moved in, or follow the suspect when that is too big */
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const k of tracks.values())for(const q of k.pts){x0=Math.min(x0,q[1]);x1=Math.max(x1,q[1]);y0=Math.min(y0,q[2]);y1=Math.max(y1,q[2])}
+  if(x0>x1){x0=0;x1=960;y0=0;y1=540}
+  const spread=Math.max(x1-x0,(y1-y0)*W/H)*1.2+1,follow=spread>1500,viewW=follow?1500:Math.max(16,spread),sc=W/viewW,avs=Math.max(.45,Math.min(1.1,sc*.9));
+  const at=(k,t)=>{const a=k.pts;if(!a.length||t<a[0][0])return null;let lo=0,hi=a.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m][0]<=t)lo=m;else hi=m-1}
+    const p=a[lo],q=a[lo+1];if(k.left&&t>k.left)return null;if(!q||q[0]-p[0]>1200)return{x:p[1],y:p[2],a:p[3],hp:p[4],al:p[5],stale:t-p[0]>1500,dx:0};
+    const f=(t-p[0])/(q[0]-p[0]);return{x:p[1]+(q[1]-p[1])*f,y:p[2]+(q[2]-p[2])*f,a:p[3],hp:p[4],al:p[5],dx:q[1]-p[1]}};
+  const speedOf=(k,t)=>{const a=at(k,t),b=at(k,t-500);return a&&b?Math.hypot(a.x-b.x,a.y-b.y)*2:0};
+  const sus=[...tracks.values()].find(k=>k.sus);
+  let T=0,play=true,spd=1,last=performance.now(),raf=0,recDone=null;
+  function frame(now){raf=requestAnimationFrame(frame);const dt=now-last;last=now;if(play){T+=dt*spd;if(T>=dur){T=dur;play=false;pb.textContent='▶';if(recDone)recDone()}}sl.value=String(Math.round(T));draw()}
+  function draw(){
+    const g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#101a36');g.addColorStop(1,'#0a0f22');cx.fillStyle=g;cx.fillRect(0,0,W,H);
+    let cxw=(x0+x1)/2,cyw=(y0+y1)/2;if(follow&&sus){const p=at(sus,T);if(p){cxw=p.x;cyw=p.y}}
+    const X=x=>(x-cxw)*sc+W/2,Y=y=>(y-cyw)*sc+H/2;
+    /* grid */
+    const step=Math.pow(10,Math.ceil(Math.log10(viewW/10)));cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=1;cx.beginPath();
+    for(let gx=Math.floor((cxw-viewW/2)/step)*step;gx<cxw+viewW/2;gx+=step){cx.moveTo(X(gx),0);cx.lineTo(X(gx),H)}
+    for(let gy=Math.floor((cyw-viewW/2)/step)*step;gy<cyw+viewW/2;gy+=step){cx.moveTo(0,Y(gy));cx.lineTo(W,Y(gy))}cx.stroke();
+    const list=[...tracks.values()].map(k=>({k,p:at(k,T)})).filter(o=>o.p).sort((a,b)=>a.p.y-b.p.y);
+    /* trails over the last 2 s */
+    for(const{k}of list){cx.strokeStyle=k.sus?'rgba(255,90,90,.75)':'rgba(140,180,255,.25)';cx.lineWidth=k.sus?3:2;cx.beginPath();let first=true;
+      for(let t=Math.max(0,T-2000);t<=T;t+=80){const q=at(k,t);if(!q){first=true;continue}if(first){cx.moveTo(X(q.x),Y(q.y));first=false}else cx.lineTo(X(q.x),Y(q.y))}cx.stroke()}
+    for(const{k,p}of list){const x=X(p.x),y=Y(p.y);cx.globalAlpha=p.stale||p.al===0?.35:1;
+      if(k.sus){cx.strokeStyle='#ff5a5a';cx.lineWidth=3;cx.beginPath();cx.ellipse(x,y,26*avs+6,10*avs+4,0,0,6.29);cx.stroke()}
+      if(k.sus&&aims.length){let A=null;for(const q of aims){if(q[0]>T)break;if(T-q[0]<400)A=q}if(A){cx.strokeStyle=A[2]?'#ffd24a':'rgba(255,210,74,.45)';cx.lineWidth=A[2]?3:1.5;cx.beginPath();cx.moveTo(x,y-14*avs);cx.lineTo(x+Math.cos(A[1])*160,y-14*avs+Math.sin(A[1])*160);cx.stroke()}}
+      const L=k.look||{};try{drawAvatar(cx,x,y,{skin:L.skin||'#4f8cff',rainbow:!!L.rain,pat:L.pat||'',hat:L.hat||'h_none',dir:p.dx<0?3:p.dx>0?1:0,s:avs,t:T/1000,walk:T/120})}catch(e){cx.fillStyle=L.skin||'#4f8cff';cx.beginPath();cx.arc(x,y-14,12,0,6.29);cx.fill()}
+      cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const label=(k.sus?'⚠ ':'')+k.name+(k.bot?' (bot)':'');const tw=cx.measureText(label).width+10;
+      cx.fillStyle=k.sus?'rgba(160,20,30,.85)':'rgba(0,0,0,.55)';rrp(cx,x-tw/2,y-62*avs-22,tw,18,6);cx.fill();cx.fillStyle='#fff';cx.fillText(label,x,y-62*avs-8);
+      if(p.hp!=null){cx.fillStyle='rgba(0,0,0,.6)';cx.fillRect(x-20,y+8,40,5);cx.fillStyle=p.hp>50?'#6fdc9a':p.hp>25?'#f2c13d':'#ff6a6a';cx.fillRect(x-20,y+8,40*Math.max(0,Math.min(1,p.hp/100)),5)}
+      cx.globalAlpha=1}
+    /* HUD */
+    cx.textAlign='left';cx.font='700 15px DM Sans,sans-serif';cx.fillStyle='rgba(0,0,0,.55)';rrp(cx,10,10,430,sus?52:30,8);cx.fill();cx.fillStyle='#fff';
+    const mm=t=>Math.floor(t/60000)+':'+String(Math.floor(t/1000)%60).padStart(2,'0');
+    cx.fillText('REPLAY  ·  '+(data.room||data.kind||'room')+'  ·  '+mm(T)+' / '+mm(dur),20,30);
+    if(sus){const v=speedOf(sus,T);cx.font='600 13px DM Sans,sans-serif';cx.fillStyle='#ffb3b3';cx.fillText('⚠ '+sus.name+'  ·  speed '+Math.round(v)+' units/s'+(flag&&flag.why?'  ·  '+flag.why:''),20,52)}
+    else if(data.susName){cx.font='600 13px DM Sans,sans-serif';cx.fillStyle='#ffb3b3';cx.fillText('⚠ '+data.susName+' did not move in this room',20,52)}
+    const lines=[...chat.filter(c=>c[0]<=T&&T-c[0]<7000).map(c=>c[1]+': '+c[2]),...notes.filter(n=>n[0]<=T&&T-n[0]<4000).map(n=>n[1])].slice(-5);
+    cx.font='600 13px DM Sans,sans-serif';lines.forEach((l,i)=>{const y=H-16-(lines.length-1-i)*20,w=Math.min(W-20,cx.measureText(l).width+14);cx.fillStyle='rgba(0,0,0,.55)';rrp(cx,10,y-14,w,19,6);cx.fill();cx.fillStyle='#e8ecf6';cx.fillText(l,17,y)});
+    if(!tracks.size){cx.textAlign='center';cx.fillStyle='#8d98b5';cx.font='600 16px DM Sans,sans-serif';cx.fillText('Nobody moved in this room while it was recorded.',W/2,H/2)}
+  }
+  const ctl=el('div','row rpctl'),pb=el('button','btn gold','⏸'),sl=document.createElement('input');sl.type='range';sl.min=0;sl.max=String(Math.round(dur));sl.step='10';sl.value='0';sl.setAttribute('aria-label','Replay time');
+  pb.onclick=()=>{if(T>=dur)T=0;play=!play;pb.textContent=play?'⏸':'▶';last=performance.now()};sl.oninput=()=>{T=+sl.value};
+  const sp=el('button','btn alt','1×');sp.onclick=()=>{spd=spd===1?2:spd===2?.5:1;sp.textContent=spd+'×'};
+  const sv=el('button','btn alt','💾 Save video');
+  sv.onclick=()=>{if(typeof MediaRecorder==='undefined')return toast('This browser cannot make videos');sv.disabled=true;sv.textContent='Making video…';
+    const st=cv.captureStream(30),rec=new MediaRecorder(st,{videoBitsPerSecond:2500000}),parts=[];rec.ondataavailable=e=>{if(e.data.size)parts.push(e.data)};
+    rec.onstop=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(parts,{type:'video/webm'}));a.download='replay-'+(data.susName||'room')+'-'+new Date(data.t0||Date.now()).toISOString().slice(0,16).replace(/[:T]/g,'-')+'.webm';document.body.append(a);a.click();a.remove();sv.disabled=false;sv.textContent='💾 Save video';recDone=null};
+    T=0;spd=1;sp.textContent='1×';play=true;pb.textContent='⏸';last=performance.now();recDone=()=>{try{rec.stop()}catch(e){}};rec.start()};
+  ctl.append(pb,sl,sp,sv);sl.style.flex='1';wrap.append(cv,ctl);
+  const info=el('div','note');info.textContent='Rebuilt from what the server relayed to the room ('+(tracks.size)+' players/fighters, '+ev.length+' messages). The suspect is ringed in red'+(aims.length?'; the yellow line is where they aimed (bright when firing)':'')+'.';wrap.append(info);
+  wrap.stop=()=>cancelAnimationFrame(raf);raf=requestAnimationFrame(frame);
+  const mo=new MutationObserver(()=>{if(!wrap.isConnected){cancelAnimationFrame(raf);mo.disconnect()}});setTimeout(()=>mo.observe(document.body,{childList:true,subtree:true}),0);
+  wrap.T=()=>T;wrap.seek=v=>{T=v};wrap.tracks=tracks;
+  return wrap;
 }
 const BAN_CATS=['Cheating','Harassment','Inappropriate language','Scamming','Spam','Ban evasion','Other'];
 const BAN_DEFAULT='You have violated this sites rules, and have been banned. If you would like to appeal this ban, click the button below.';
@@ -6774,7 +6833,7 @@ function renderAccount(v){
       go2.onclick=submit;p.addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
       p.append(err,go2);
       if(mode==='in'){const fg=el('button','btn alt','Forgot password?');fg.style.cssText='margin-top:12px;margin-left:8px';fg.onclick=()=>{mode='reset';step=1;draw()};p.append(fg)}
-      p.append(el('p','note',mode==='up'?'New accounts start fresh with 100 coins; coins you have as a guest stay with the guest. Your coins, level and items are kept on the server. To keep games fair, if something looks like cheating, your game screen (only the game, never your camera) may be recorded for up to 30 seconds for moderators to review. Usernames are 3 to 16 letters, numbers or underscores; passwords need at least 8 characters.':'Signing in loads your saved coins, level and cosmetics from the server.'));
+      p.append(el('p','note',mode==='up'?'New accounts start fresh with 100 coins; coins you have as a guest stay with the guest. Your coins, level and items are kept on the server. To keep games fair, if something looks like cheating, the server may save a 30-second replay of the game room for moderators to review. Usernames are 3 to 16 letters, numbers or underscores; passwords need at least 8 characters.':'Signing in loads your saved coins, level and cosmetics from the server.'));
     }
     blockedBox(p);v.append(p);
     for(const[lab,val,foc]of kept){const i=lab&&[...p.querySelectorAll('input')].find(x=>x.getAttribute('aria-label')===lab&&!x.value&&!x.readOnly);if(i&&val){i.value=val;if(foc)i.focus()}}
@@ -6836,7 +6895,7 @@ function renderAdmin(v){
       s.players.forEach(x=>{const d=el('div','frow'),g=el('div','grow'),n=el('b');n.textContent=staffMark(x.staff)+x.name+(x.acct?'':'  (guest)');if(x.staff)n.classList.add('rb');const sm=el('small');sm.textContent=(x.room||'not in a room')+(x.ip?'   ·   '+x.ip:'');g.append(n,sm);d.append(g);
         const locked=x.staff&&(!OWN||x.staff==='owner');
         if(x.acct&&x.acct!==ACC.name&&!(locked&&x.staff==='owner'))d.append(btn('Manage','alt',()=>{who=x.acct;setTab('pl')}));
-        if(x.acct!==ACC.name&&!locked)d.append(btn('🎥 Record','alt',async()=>{const r=await call('acrecord',{id:x.id});if(r.ok)toast('Recording '+x.name+'\'s screen for 30 s. It will show up in Anti-cheat.')}));
+        if(x.acct!==ACC.name&&!locked)d.append(btn('🎥 Record','alt',async()=>{const r=await call('acrecord',{id:x.id});if(r.ok)toast('Saving a 30 s replay of '+x.name+'\'s room. It will show up in Anti-cheat.')}));
         if(x.acct!==ACC.name&&!locked)d.append(btn('Kick','alt',async()=>{if(confirm('Disconnect '+x.name+'?')){await call('kick',{id:x.id});load()}}));pl.append(d)});
     };
     load();timer=setInterval(load,6000);
@@ -6901,18 +6960,19 @@ function renderAdmin(v){
   /* clips recorded when something looked like cheating. Watch, then ban or dismiss with ✕ */
   async function anticheat(){
     const r=await call('ac',{all:false});if(tab!=='ac'||!r.ok)return;const p=box('🛡️ Anti-cheat');
-    p.append(el('p','note','When the server or another player\'s game sees something impossible (coins from nowhere, rewards claimed too fast, moving too fast, a cheating report), the player\'s game screen is recorded for up to 30 seconds. Watch the clip: ban them if it looks bad, or press ✕ if it is fine.'));
+    p.append(el('p','note','When the server or another player\'s game sees something impossible (coins from nowhere, rewards claimed too fast, moving too fast, a cheating report), the server saves 30 seconds of what the room saw: every position, game message and chat line. Watch the replay: ban them if it looks bad, or press ✕ if it is fine.'));
     if(!r.list.length)p.append(el('p','note','Nothing to review. 🎉'));
     r.list.forEach(f=>{
       const d=el('div','frow acrow');d.style.cssText='flex-direction:column;align-items:stretch;gap:6px';
       const top=el('div','row');top.style.cssText='margin:0;justify-content:space-between;align-items:center';
-      const h=el('div');const b=el('b');b.textContent=f.name+(f.acct?'':' (guest)')+'   ·   '+f.why+(f.n>1?'   ×'+f.n:'');const sm=el('small');sm.style.display='block';sm.textContent=when(f.ts)+(f.room?'   ·   '+f.room:'')+'   ·   clip: '+(f.clip?(f.secs?Math.round(f.secs)+' s':'ready'):f.rec||'none');h.append(b,sm);
+      const h=el('div');const b=el('b');b.textContent=f.name+(f.acct?'':' (guest)')+'   ·   '+f.why+(f.n>1?'   ×'+f.n:'');const sm=el('small');sm.style.display='block';sm.textContent=when(f.ts)+(f.room?'   ·   '+f.room:'')+'   ·   replay: '+(f.clip?(f.secs?Math.round(f.secs)+' s':'ready'):f.rec||'none');h.append(b,sm);
       const x=btn('✕','alt',async()=>{const z=await call('acdismiss',{id:f.id});if(z.ok){toast('Dismissed');draw()}});x.title='Looks fine';x.setAttribute('aria-label','Looks fine, dismiss');x.style.cssText='min-width:44px;font-size:18px';
       top.append(h,x);d.append(top);
       const det=el('div','note');det.textContent=(f.detail||[]).join('  ·  ');d.append(det);
       const row=el('div','row');row.style.marginTop='0';
-      if(f.clip)row.append(btn('▶ Watch','gold',async()=>{const z=await call('acclip',{id:f.id});if(!z.ok)return;const v=document.createElement('video');v.controls=true;v.autoplay=true;v.playsInline=true;v.muted=true;
-        v.style.cssText='width:100%;max-height:60vh;background:#000;border-radius:10px';v.src=NET.httpBase()+z.path;const old=d.querySelector('video');if(old)old.remove();d.append(v)}));
+      if(f.clip)row.append(btn('▶ Watch replay','gold',async()=>{const z=await call('acclip',{id:f.id});if(!z.ok)return;let data;
+        try{data=await (await fetch(NET.httpBase()+z.path)).json()}catch(e){return toast('Could not load the replay')}
+        const old=d.querySelector('.rpwrap');if(old){if(old.stop)old.stop();old.remove()}d.append(replayView(data,f))}));
       if(f.acct)row.append(btn('Ban…','gold',()=>banForm(f.name,{cat:'Cheating',reason:'',ac:f.id,done:draw})));
       d.append(row);p.append(d)});
     body.append(p);

@@ -237,6 +237,7 @@ function broadcast(room,o,except){for(const c of room.members)if(c!==except)c.se
 function leaveRoom(c){
   const r=c.room&&rooms.get(c.room);c.room=null;if(!r)return;
   r.members.delete(c);broadcast(r,{t:'leave',room:r.id,from:c.id});
+  if(r.recs){recPush(r,c,'l',0);for(const R of r.recs.slice())if(R.sus===c.id||!r.members.size)recEnd(r,R)}
   if(r===eventRoom&&c.acct&&c.acct.key===r.ownerKey){for(const x of r.members)x.send({t:'user.eventend'});eventRoom=null}
   if(r.master===c){r.master=r.members.values().next().value||null;if(r.master)broadcast(r,{t:'master',room:r.id,id:r.master.id})}   /* the longest-standing member takes over */
   if(!r.members.size)rooms.delete(r.id);
@@ -253,7 +254,8 @@ function enter(c,room,p,req){
   const meta=room.priv?{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:true,code:room.code}:{id:room.id,kind:room.kind,name:room.name,max:room.max,priv:false};
   if(room.wseed!=null){meta.wseed=room.wseed;meta.srv=room.srv||'';meta.gm=room.gm||'s';meta.df=room.df||'n'}
   c.send({t:'roster',room:room.id,req,meta,players:others,master:room.master.id});
-  broadcast(room,{t:'join',room:room.id,p:c.p},c);
+  broadcast(room,{t:'join',room:room.id,p:c.p},c);recPush(room,c,'j',pview(c));
+  if(c.recWait){const w=c.recWait,f=db.ac.find(x=>x.id===w.id);if(f&&Date.now()<w.until)recStart(f,c);else c.recWait=null}
   if(c.acct)presence(c.acct.key);
   return true;
 }
@@ -288,26 +290,39 @@ function acReport(c,why,detail,force){
   else{f={id:crypto.randomBytes(5).toString('hex'),ts:now,who,name:c.acct?c.acct.name:(c.p&&c.p.name)||'guest',acct:!!c.acct,why:clean(why,40),detail:[clean(detail,160)],n:1,room:c.room&&rooms.get(c.room)?rooms.get(c.room).name:'',clip:null,open:true};
     db.ac.push(f);if(db.ac.length>200)db.ac.splice(0,db.ac.length-200);touch()}
   /* one recording per player every 10 minutes, at most 30 kept */
-  if(force||now-(acLast.get(who)||0)>600e3){acLast.set(who,now);f.rec='asked';c.acRec={id:f.id,parts:[],size:0,at:now};c.send({t:'ac.rec',id:f.id,secs:30})}
+  if(force||now-(acLast.get(who)||0)>600e3){acLast.set(who,now);recStart(f,c)}
   for(const x of conns.values())if(staffLevel(x))x.send({t:'ac.new',id:f.id,name:f.name,why:f.why});
   return f}
+/* ---------- replays: what the room saw, recorded on the server ----------
+   Everything a room relays (positions, game messages, chat, who joined or left) for 30 seconds is saved, gzipped, as a replay.
+   The suspect's browser is never asked to do anything, so it cannot notice, block or fake it. Staff watch it as a video in the admin page. */
+const REC_MS=30e3,REC_MAX=5e6;
+const pview=x=>x.p?{name:x.p.name,acct:x.p.acct,staff:x.p.staff,skin:x.p.skin,rain:x.p.rain,hat:x.p.hat,pat:x.p.pat,tr:x.p.tr,kf:x.p.kf}:{name:'Player'};
+function recStart(f,c){const now=Date.now(),r=c.room&&rooms.get(c.room);
+  if(!r){f.rec='waiting for a game';c.recWait={id:f.id,until:now+600e3};touch();return}
+  if((r.recs||[]).some(R=>R.sus===c.id))return;c.recWait=null;
+  const R={id:f.id,sus:c.id,susName:f.name,t0:now,kind:r.kind,room:r.name,players:{},init:Object.assign({},r.lastRpc||{}),master:r.master?r.master.id:null,ev:[],size:0,lastBig:{}};
+  for(const x of r.members)R.players[x.id]=pview(x);
+  (r.recs||(r.recs=[])).push(R);R.timer=setTimeout(()=>recEnd(r,R),REC_MS);f.rec='recording';touch()}
+function recPush(r,c,type,payload,big){if(!r.recs||!r.recs.length)return;const now=Date.now();
+  for(const R of r.recs){if(R.size>REC_MAX)continue;
+    if(big){const k=c.id+type;if(now-(R.lastBig[k]||0)<90)continue;R.lastBig[k]=now}   /* big snapshots: at most ~11 a second */
+    const e=[now-R.t0,c.id,type,payload];R.ev.push(e);R.size+=big||60}}
+function recEnd(r,R){clearTimeout(R.timer);if(r.recs){r.recs=r.recs.filter(x=>x!==R)}const f=db.ac.find(x=>x.id===R.id);if(!f)return;
+  const data={v:1,kind:R.kind,room:R.room,t0:R.t0,secs:(Date.now()-R.t0)/1000,sus:R.sus,susName:R.susName,master:R.master,players:R.players,init:R.init,ev:R.ev};
+  zlib.gzip(Buffer.from(JSON.stringify(data)),(e,buf)=>{if(e){f.rec='failed';touch();return}
+    f.clip=f.id+'.json.gz';f.rec='ok';f.secs=data.secs;f.bytes=buf.length;f.kind=R.kind;clipMem.set(f.clip,buf);fs.writeFile(path.join(CLIPS,f.clip),buf,()=>{});
+    const withClip=db.ac.filter(x=>x.clip);while(withClip.length>30){const o=withClip.shift();fs.unlink(path.join(CLIPS,o.clip),()=>{});clipMem.delete(o.clip);o.clip=null;o.rec='deleted (old)'}
+    while(clipMem.size>12)clipMem.delete(clipMem.keys().next().value);touch();
+    for(const x of conns.values())if(staffLevel(x))x.send({t:'ac.new',id:f.id,name:f.name,why:f.why,ready:true})})}
 function acMsg(c,m){const now=Date.now();
   if(m.t==='ac.suspect'){   /* another player's game saw something impossible (speed, teleport, aim). It only starts a recording. */
     const tc=conns.get(String(m.target||''));if(!tc||tc===c||!c.room||tc.room!==c.room)return;
     if(tc.fxAt&&now-tc.fxAt<36e5)return;   /* staff gave them speed or flying */
     const k=c.id+'>'+tc.id;if(now-(acSusp.get(k)||0)<600e3)return;acSusp.set(k,now);acReport(tc,clean(m.why,40)||'gameplay','seen by '+((c.p&&c.p.name)||'a player')+': '+clean(m.detail,120));return}
-  if(m.t==='ac.self'){const k='self:'+c.id;if(now-(acSusp.get(k)||0)<600e3)return;acSusp.set(k,now);acReport(c,clean(m.why,40)||'client',clean(m.detail,120));return}
-  const R=c.acRec;if(!R||R.id!==m.id)return;
-  if(m.t==='ac.chunk'){const d=String(m.d||'');if(R.size+d.length>3.2e6||R.parts.length>200){c.acRec=null;return}R.parts.push(d);R.size+=d.length;return}
-  if(m.t==='ac.done'||m.t==='ac.fail'){c.acRec=null;const f=db.ac.find(x=>x.id===R.id);if(!f)return;
-    if(m.t==='ac.fail'||!R.parts.length){f.rec='failed: '+clean(m.err,80);touch();return}
-    const buf=Buffer.from(R.parts.join(''),'base64');f.clip=f.id+'.webm';f.rec='ok';f.secs=num(m.secs||0,0,40);f.bytes=buf.length;clipMem.set(f.clip,buf);
-    fs.writeFile(path.join(CLIPS,f.clip),buf,()=>{});
-    const withClip=db.ac.filter(x=>x.clip);while(withClip.length>30){const o=withClip.shift();fs.unlink(path.join(CLIPS,o.clip),()=>{});clipMem.delete(o.clip);o.clip=null;o.rec='deleted (old)'}
-    while(clipMem.size>8)clipMem.delete(clipMem.keys().next().value);touch()}
 }
 function clipServe(res,ticket){const t=clipTickets.get(ticket);if(!t||t.exp<Date.now()){res.writeHead(403);return res.end('expired')}
-  const send=b=>{res.writeHead(200,{'Content-Type':'video/webm','Content-Length':b.length,'Cache-Control':'private, no-store','Access-Control-Allow-Origin':'*'});res.end(b)};
+  const send=b=>{res.writeHead(200,{'Content-Type':'application/json','Content-Encoding':'gzip','Content-Length':b.length,'Cache-Control':'private, no-store','Access-Control-Allow-Origin':'*'});res.end(b)};
   const b=clipMem.get(t.file);if(b)return send(b);fs.readFile(path.join(CLIPS,t.file),(e,d)=>{if(e){res.writeHead(404);return res.end('gone')}send(d)})}
 function bind(c,a,req,token){
   unbind(c);const old=online.get(a.key);
@@ -861,7 +876,8 @@ async function handle(c,m){
   if(t==='leave'){leaveRoom(c);return}
   if(t==='lock'){if(room.master===c)room.locked=true;return}   /* the master closes the room when a match starts */
   if(t==='state'&&m.s){
-    const s=m.s;broadcast(room,{t:'state',room:room.id,from:c.id,s:{x:Math.round(num(s.x,-200,2600)),y:Math.round(num(s.y,-200,2600)),dir:Math.round(num(s.dir,0,3)),mv:!!s.mv,wk:+num(s.wk,0,100).toFixed(2),sz:+num(s.sz||1,0.3,4).toFixed(2)}},c);return;
+    const s=m.s,o={x:Math.round(num(s.x,-200,2600)),y:Math.round(num(s.y,-200,2600)),dir:Math.round(num(s.dir,0,3)),mv:!!s.mv,wk:+num(s.wk,0,100).toFixed(2),sz:+num(s.sz||1,0.3,4).toFixed(2)};
+    broadcast(room,{t:'state',room:room.id,from:c.id,s:o},c);if(room.recs)recPush(room,c,'s',[o.x,o.y,o.dir,o.mv?1:0,o.sz]);return;
   }
   if(t==='chat'){
     const now=Date.now();c.ctok=Math.min(LIM.chatBurst,c.ctok+(now-c.clast)/1000*LIM.chatPerSec);c.clast=now;
@@ -869,13 +885,16 @@ async function handle(c,m){
     if(c.muteUntil>now||(c.acct&&c.acct.muted>now)){c.send({t:'notice',text:'You are muted.'});return}
     if(c.acct&&c.acct.ban>now){c.send({t:'notice',text:'You are banned from chat for '+banLeft(c.acct.ban-now)+'.'});return}
     const text=sChat(m.text);if(!text)return;c.ctok--;
-    room.chat.push({from:c.p?c.p.name:'?',text,ts:now});if(room.chat.length>30)room.chat.shift();
+    room.chat.push({from:c.p?c.p.name:'?',text,ts:now});if(room.chat.length>30)room.chat.shift();recPush(room,c,'c',text);
     broadcast(room,{t:'chat',room:room.id,from:c.id,text},c);return;
   }
   if(t==='rpc'){   /* remote procedure calls inside a room: target is 'all', 'others', 'master' or a player id */
     const name=String(m.name||'');if(!/^[a-z][\w.]{0,30}$/.test(name))return;
-    let args=m.args;if(args!==undefined&&JSON.stringify(args).length>LIM.rpcMax)return;
+    let args=m.args;const len=args===undefined?0:JSON.stringify(args).length;if(len>LIM.rpcMax)return;
     const out={t:'rpc',room:room.id,from:c.id,name,args},tg=String(m.target||'others');
+    /* the latest copy of each message kind (match roster, settings...) so a replay that starts mid-game knows who is who */
+    if(len<12000){const L=room.lastRpc||(room.lastRpc={});if(name in L||Object.keys(L).length<40)L[name]=args}
+    if(room.recs)recPush(room,c,'r',[name,tg.length>12?'p':tg,args],len>1500?len:0);
     if(tg==='master'){if(room.master&&room.master!==c)room.master.send(out)}
     else if(tg==='others'||tg==='all')broadcast(room,out,c);
     else{for(const x of room.members)if(x.id===tg&&x!==c)x.send(out)}
