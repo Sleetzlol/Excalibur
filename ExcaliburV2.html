@@ -531,6 +531,33 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
 @media (max-width:760px){nav{overflow-x:auto;justify-content:flex-start;gap:2px;scrollbar-width:none}nav::-webkit-scrollbar{display:none}nav button{flex:none;padding:8px 11px;font-size:13px;flex-direction:column;gap:2px}
   .dhero{padding:18px}.dhero h2{font-size:22px}.dav canvas{width:64px;height:72px}.dbtns .btn{padding:8px 12px;font-size:14px}.sdays{gap:3px}.sday b{font-size:11px}}
 .tstreak{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.tstreak span{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:700;font-size:13px}
+
+
+.pmhead{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.pmhead canvas{width:72px;height:72px;background:radial-gradient(circle,#243055,#141a2e);border-radius:16px;flex:none}
+.pmgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pmgrid .btn{text-align:left;min-height:44px}
+.pmlook{margin-top:12px;padding:10px;border-radius:12px;background:rgba(242,184,75,.07);border:1px solid rgba(242,184,75,.25)}
+.pmlook .note{margin:0 0 8px}
+.pmrow{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 10px;margin-bottom:6px;font:inherit;cursor:pointer;min-height:48px}
+.pmrow:hover{border-color:var(--gold)}
+.pmrow canvas{width:36px;height:36px;flex:none}
+.wbar .wppl{order:0;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;height:32px;padding:0 11px;margin-right:6px;font:700 13px var(--head);color:#fff;background:rgba(8,12,34,.55);border:1px solid rgba(255,255,255,.2);border-radius:10px;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.wbar .wppl[hidden]{display:none}
+.win.page.playing .wbar{display:flex;align-items:center}
+@media (max-width:640px){.pmgrid{grid-template-columns:1fr}}
+/* ban page: a banned account can sign in, but sees only this */
+.banpage{position:fixed;inset:0;z-index:9000;background:radial-gradient(ellipse at top,#2a1220,#0b0d16 70%);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.banpage .bcard{width:100%;max-width:520px;background:#141827;border:1px solid #3a2232;border-radius:18px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.banpage h1{margin:0 0 4px;font-size:30px;color:var(--bad);display:flex;gap:10px;align-items:center}
+.banpage .brow{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:18px 0;font-size:15px}
+.banpage .brow b{color:var(--mute);font-weight:600}
+.banpage .brow span{color:var(--text);overflow-wrap:anywhere}
+.banpage .bleft{font-variant-numeric:tabular-nums;color:var(--gold)!important;font-weight:700}
+.banpage textarea{width:100%;min-height:110px;resize:vertical;background:#0d1020;color:var(--text);border:1px solid #2a3150;border-radius:10px;padding:10px;font:inherit}
+.banpage .bstat{margin-top:14px;padding:12px;border-radius:10px;background:#0f1324;border:1px solid #273052;font-size:14px;line-height:1.45}
+.banpage .bapp{width:100%;margin-top:6px;font-size:16px;padding:13px}
+.banpage .bfoot{display:flex;justify-content:space-between;align-items:center;margin-top:18px;gap:10px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -590,9 +617,12 @@ const GAMES=[
 ];
 
 /* ---------- Safe storage ---------- */
+/* When you are signed in, your coins, XP, items and reward progress live only on the server: these keys are then kept in memory
+   for this page and never written to the browser, so the guest wallet in localStorage stays the guest's. */
+const WALLET_KEYS=new Set(['coins','xp','owned','eq','crates','streak','lvclaim','wadv']),WMEM={acct:false,m:{}};
 const store={
-  get(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
-  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  get(k,d){if(WMEM.acct&&WALLET_KEYS.has(k))return k in WMEM.m?JSON.parse(WMEM.m[k]):d;try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){if(WMEM.acct&&WALLET_KEYS.has(k)){WMEM.m[k]=JSON.stringify(v);return}try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 };
 let coins=store.get('coins',100);
 const ACCHOOK={dirty(){}};let signedIn=false,signedOwner=false,signedStaff='';
@@ -605,13 +635,40 @@ let xp=store.get('xp',0);
 const lvOf=x=>Math.floor(Math.sqrt(x/40))+1;
 function drawLv(){const L=lvOf(xp),a=40*(L-1)**2,b=40*L**2;$('#lvl').textContent='Level '+L;$('#xpb').style.width=((xp-a)/(b-a)*100)+'%'}
 let shown=coins;
-function setCoins(n){
+function setCoins(n,fromServer){
   const old=coins;coins=Math.max(0,Math.floor(n));store.set('coins',coins);dailyState();ACCHOOK.dirty();
   cancelAnimationFrame(setCoins.r);const from=shown,t0=performance.now(),b=$('#bal');
   const step=t=>{const k=Math.min(1,(t-t0)/450);shown=Math.round(from+(coins-from)*k);b.textContent=shown.toLocaleString();if(k<1)setCoins.r=requestAnimationFrame(step)};
   step(t0);
-  if(coins>old){try{REW.bump('coins',coins-old)}catch(e){}const l0=lvOf(xp);xp+=coins-old;store.set('xp',xp);drawLv();if(lvOf(xp)>l0)toast('Level up! You are now level '+lvOf(xp));const c=document.querySelector('.coins i');c.classList.remove('spin');void c.offsetWidth;c.classList.add('spin')}
+  if(coins>old){try{REW.bump('coins',coins-old)}catch(e){}const l0=lvOf(xp);if(!fromServer){xp+=coins-old;store.set('xp',xp)}drawLv();if(lvOf(xp)>l0)toast('Level up! You are now level '+lvOf(xp));const c=document.querySelector('.coins i');c.classList.remove('spin');void c.offsetWidth;c.classList.add('spin')}
 }
+/* ---------- Economy ----------
+   Guest: coins live in this browser. Signed in: every coin you get or spend is asked for on the server, which decides
+   (prices, crates, the casino, how much a game can pay and how often). The page only shows what the server says. */
+const ECON={
+  get acct(){return WMEM.acct},
+  rew:{crates:0,lv:0,quests:0,daily:true,sn:0,advs:[]},
+  apply(r){if(!r)return;if(r.rew)ECON.rew=r.rew;if(r.owned&&Array.isArray(r.owned)){owned=r.owned.slice();store.set('owned',owned)}
+    if(r.coins!=null&&r.coins!==coins){const up=r.coins>coins;setCoins(r.coins,true);if(!up)REW.badge()}
+    if(r.xp!=null){const l0=lvOf(xp);xp=+r.xp||0;store.set('xp',xp);drawLv();if(lvOf(xp)>l0)toast('Level up! You are now level '+lvOf(xp))}
+    try{dailyState();REW.badge()}catch(e){}},
+  /* later=true: hand back the answer without showing the new balance yet (so a spin is not spoiled) and call r.show() when it lands */
+  ask(m,later){return ACC.req(m).then(r=>{r=r||{ok:false,err:'No answer'};if(r.ok){if(later)r.show=()=>ECON.apply(r);else ECON.apply(r)}else r.show=()=>{};return r})},
+  /* add coins for something you did. Resolves with the coins actually added. */
+  earn(why,n,ref){n=Math.floor(n);if(!(n>0))return Promise.resolve(0);
+    if(!ECON.acct){setCoins(coins+n);return Promise.resolve(n)}
+    if(!NET.online()){toast('You are offline, so these coins could not be added to your account.');return Promise.resolve(0)}
+    return ECON.ask({t:'econ.earn',why,n,ref}).then(r=>{if(!r.ok){if(r.err&&!/Too soon|Nothing/.test(r.err))toast(r.err);return 0}return r.n})},
+  /* take coins (a bet, a buy-in). Resolves true when they were taken. */
+  spend(n){n=Math.floor(n);if(coins<n){toast('Not enough coins');return Promise.resolve(false)}
+    if(!ECON.acct){setCoins(coins-n);return Promise.resolve(true)}
+    return ECON.ask({t:'econ.spend',n}).then(r=>{if(!r.ok)toast(r.err||'Could not take the coins.');return !!r.ok})},
+  /* the server's answer may arrive before or after the animation; this keeps the display honest */
+  enter(u){WMEM.acct=true;WMEM.m={};ECON.apply({rew:u.rew});const pa={};for(const id of (u.rew&&u.rew.advs)||[])pa[id]=1;store.set('wadv',pa)},
+  leave(){WMEM.acct=false;WMEM.m={};ECON.rew={crates:0,lv:0,quests:0,daily:true,sn:0,advs:[]};
+    coins=store.get('coins',100);shown=coins;$('#bal').textContent=coins.toLocaleString();xp=store.get('xp',0);drawLv();
+    owned=store.get('owned',DEFAULT_COS.slice());eq={...eq,...store.get('eq',{})};try{dailyState();REW.badge()}catch(e){}}
+};
 function float(txt,x,y,color){const e=el('div','float',txt);e.style.left=x+'px';e.style.top=y+'px';if(color)e.style.color=color;document.body.append(e);setTimeout(()=>e.remove(),900)}
 function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1800)}
 function dailyState(){const b=$('#daily');let ready=true,n=0;try{ready=REW.canDaily();n=REW.streakNow()}catch(e){}b.classList.toggle('ready',ready);b.textContent=ready?'🎁 Daily reward':'🔥 '+n+' day'+(n===1?'':'s')}
@@ -1427,7 +1484,7 @@ function worldGame(box,win,opts){
     if(r.o.endsWith('_pick'))adv('pick');if(r.o==='bench')adv('bench');if(r.o.endsWith('_pick')&&r.o.startsWith('iron'))adv('ipick');if(r.o==='eye_of_ender')adv('eye');return true}
   /* ----- advancements (coins are paid once per account, never in creative) ----- */
   function adv(id){if(me.adv[id]||ADVI[id]==null)return;me.adv[id]=1;const a=ADV[ADVI[id]];if(CRE())return;advBanner={t:a[1],d:a[2],c:a[3],s:4.5};sfx('win');
-    const paid=store.get('wadv',{});if(!paid[id]){paid[id]=1;store.set('wadv',paid);setCoins(coins+a[3])}}
+    const paid=store.get('wadv',{});if(!paid[id]){paid[id]=1;store.set('wadv',paid);ECON.earn('adv',a[3],id)}}
   /* ----- walking and what blocks you ----- */
   /* a portal's frame is a gate in this top-down view: the frame blocks next to an open portal can be walked through */
   const PORTALISH=new Set([OID.portal,OID.end_portal,OID.exit_on,OID.exit_off]),FRAMEISH=new Set([OID.obsidian,OID.end_frame,OID.end_frame_eye,OID.bedrock]);
@@ -2128,7 +2185,7 @@ function openGame(g){
   goFull();
   const id='w'+(++WM.n);
   const w={id,g,zoom:1,el:el('div','win page'),track:({casino:'cas',chess:'chess'})[g.builtin]||'hub'};
-  w.el.innerHTML=`<div class="wbar"><button class="door" data-a="x" title="Leave the game and go back to the title screen">🚪 Exit</button><span class="wico"></span><span class="wtitle"></span></div>
+  w.el.innerHTML=`<div class="wbar"><button class="wppl" hidden title="Players in this game: report, friend, party invite, block">👥 <b>0</b></button><button class="door" data-a="x" title="Leave the game and go back to the title screen">🚪 Exit</button><span class="wico"></span><span class="wtitle"></span></div>
     <div class="wbody"><div class="wzoomer"></div></div>`;
   w.el.querySelector('.wico').textContent=g.ico||'';w.el.querySelector('.wtitle').textContent=g.name;
   const box=w.el.querySelector('.wzoomer');
@@ -2150,8 +2207,9 @@ function openGame(g){
   else if(g.builtin==='event')w.stop=eventGame(box,w,EVJ&&EVJ.code);
   else if(g.builtin==='casino')w.stop=casinoGame(box,w);
   else if(g.builtin==='chess')w.stop=chessGame(box,w);
-  w.timer=setInterval(()=>{if(!document.hidden&&!w.el.classList.contains('min')){setCoins(coins+2);REW.bump('time',.5);toast('+2 coins for playing '+g.name)}},30000);
+  w.timer=setInterval(()=>{if(!document.hidden&&!w.el.classList.contains('min')){REW.bump('time',.5);ECON.earn('play',2).then(n=>{if(n)toast('+'+n+' coins for playing '+g.name)})}},30000);
   w.el.querySelector('.door').onclick=()=>exitGame(w);
+  {const pb=w.el.querySelector('.wppl');pb.onclick=peopleList;const upd=()=>{let n=0;for(const x of NET.sessions())if(!x.offline&&!x.dead)n+=x.players.size;pb.hidden=!n;pb.querySelector('b').textContent=n};w.pplT=setInterval(upd,1500)}
 }
 function exitGame(w){closeWin(w);showTitle()}
 /* phones: a game takes the whole screen (browser bars hidden where the browser allows it), and a long press never opens a menu */
@@ -2171,7 +2229,7 @@ function drag(h,move,start){h.addEventListener('pointerdown',e=>{if(e.target.dat
   const mv=ev=>move(ev.clientX-x0,ev.clientY-y0,s),up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);document.body.classList.remove('dragging')};
   document.body.classList.add('dragging');addEventListener('pointermove',mv);addEventListener('pointerup',up)})}
 function focusWin(w){AUD.music(w.track||'hub');WM.active=w.id;WM.wins.forEach(o=>o.el.classList.toggle('focus',o===w));drawTasks()}
-function closeWin(w){if(w.stop)w.stop();clearInterval(w.timer);if(document.fullscreenElement===w.el)document.exitFullscreen();w.el.remove();WM.wins=WM.wins.filter(o=>o!==w);
+function closeWin(w){if(w.stop)w.stop();clearInterval(w.timer);clearInterval(w.pplT);if(document.fullscreenElement===w.el)document.exitFullscreen();w.el.remove();WM.wins=WM.wins.filter(o=>o!==w);
   if(WM.active===w.id){const t=WM.wins.filter(o=>!o.el.classList.contains('min')).pop();WM.active=null;if(t)focusWin(t)}if(!WM.wins.length){AUD.music('hub');document.body.classList.remove('in-game')}drawTasks()}
 function drawTasks(){const tb=$('#taskbar');tb.innerHTML='';tb.classList.toggle('show',WM.wins.length>0);
   WM.wins.forEach(w=>{const b=el('button','task'+(w.id===WM.active&&!w.el.classList.contains('min')?' on':'')+(w.el.classList.contains('min')?' mini':''));
@@ -2482,17 +2540,23 @@ const REW={
       q={day:k,list:pick.map(p=>({id:p[0],n:0,claimed:false}))};store.set('quests',q)}return q},
   bump(id,n){const q=REW.quests();let ch=false;for(const x of q.list){const d=REW.qdef(x.id);if(x.id===id&&x.n<d[1]){x.n=Math.min(d[1],x.n+(n||1));ch=true;if(x.n>=d[1])toast('✅ Quest complete: '+d[2]+'. Claim it in Rewards')}}
     if(ch){store.set('quests',q);REW.badge()}},
-  claimQ(i){const q=REW.quests(),x=q.list[i];if(!x||x.claimed)return;const d=REW.qdef(x.id);if(x.n<d[1])return;x.claimed=true;store.set('quests',q);setCoins(coins+d[3]);AUD.sfx('coin');toast('+'+d[3]+' coins');
+  claimQ(i){const q=REW.quests(),x=q.list[i];if(!x||x.claimed)return;const d=REW.qdef(x.id);if(x.n<d[1])return;if(ECON.acct){if(REW.busy)return;REW.busy=1;ECON.ask({t:'econ.earn',why:'quest',n:d[3],ref:x.id}).then(r=>{REW.busy=0;if(!r.ok)return toast(r.err);
+        x.claimed=true;store.set('quests',q);AUD.sfx('coin');toast('+'+r.n+' coins');if(q.list.every(y=>y.claimed))toast('All quests done! +1 free mystery crate');REW.badge();try{renderRewards()}catch(e){}});return}
+    x.claimed=true;store.set('quests',q);setCoins(coins+d[3]);AUD.sfx('coin');toast('+'+d[3]+' coins');
     if(q.list.every(y=>y.claimed)){REW.addCrate(1);toast('All quests done! +1 free mystery crate')}REW.badge()},
   streak:()=>store.get('streak',{last:'',n:0}),
-  canDaily(){return REW.streak().last!==dayKey()},
-  streakNow(){const s=REW.streak(),y=dayKey(new Date(Date.now()-864e5));return s.last===dayKey()||s.last===y?s.n:0},
-  claimDaily(){if(!REW.canDaily())return;const s=REW.streak(),y=dayKey(new Date(Date.now()-864e5)),n=s.last===y?s.n+1:1,r=STREAK[(n-1)%7];
+  canDaily(){if(ECON.acct)return !!ECON.rew.daily;return REW.streak().last!==dayKey()},
+  streakNow(){if(ECON.acct)return ECON.rew.sn|0;const s=REW.streak(),y=dayKey(new Date(Date.now()-864e5));return s.last===dayKey()||s.last===y?s.n:0},
+  claimDaily(){if(!REW.canDaily())return;
+    if(ECON.acct){if(REW.busy)return;REW.busy=1;ECON.ask({t:'econ.daily'}).then(r=>{REW.busy=0;if(!r.ok)return toast(r.err);AUD.sfx('win');toast('🔥 Day '+r.day+' streak: +'+r.n+' coins'+(r.day%7===0?' and a free crate!':''));dailyState();REW.badge();try{renderRewards()}catch(e){}});return}
+    const s=REW.streak(),y=dayKey(new Date(Date.now()-864e5)),n=s.last===y?s.n+1:1,r=STREAK[(n-1)%7];
     store.set('streak',{last:dayKey(),n});setCoins(coins+r);AUD.sfx('win');toast('🔥 Day '+n+' streak: +'+r+' coins'+(n%7===0?' and a free crate!':''));if(n%7===0)REW.addCrate(1);dailyState();REW.badge()},
-  crates:()=>store.get('crates',0),
-  addCrate(n){store.set('crates',REW.crates()+n);REW.badge()},
-  levelClaims:()=>store.get('lvclaim',0),
-  claimLevel(L){if(L%5||L>lvOf(xp)||L<=REW.levelClaims())return;store.set('lvclaim',L);setCoins(coins+100*L);REW.addCrate(1);AUD.sfx('win');toast('Level '+L+' reward: +'+(100*L)+' coins and a crate')},
+  crates:()=>ECON.acct?ECON.rew.crates|0:store.get('crates',0),
+  addCrate(n){if(ECON.acct)return;store.set('crates',REW.crates()+n);REW.badge()},
+  levelClaims:()=>ECON.acct?ECON.rew.lv|0:store.get('lvclaim',0),
+  claimLevel(L){if(L%5||L>lvOf(xp)||L<=REW.levelClaims())return;
+    if(ECON.acct){if(REW.busy)return;REW.busy=1;ECON.ask({t:'econ.level',L}).then(r=>{REW.busy=0;if(!r.ok)return toast(r.err);AUD.sfx('win');toast('Level '+L+' reward: +'+r.n+' coins and a crate');try{renderRewards()}catch(e){}});return}
+    store.set('lvclaim',L);setCoins(coins+100*L);REW.addCrate(1);AUD.sfx('win');toast('Level '+L+' reward: +'+(100*L)+' coins and a crate')},
   nextLevelClaim(){const L=lvOf(xp),c=REW.levelClaims();for(let k=c+5;k<=L;k+=5)return k;return 0},
   ready(){const q=REW.quests();return(REW.canDaily()?1:0)+q.list.filter(x=>!x.claimed&&x.n>=REW.qdef(x.id)[1]).length+(REW.crates()>0?1:0)+(REW.nextLevelClaim()?1:0)},
   badge(){const b=document.querySelector('nav button[data-v=rewards]');if(!b)return;let s=b.querySelector('.nbadge');const n=REW.ready();if(!n){if(s)s.remove();return}if(!s){s=el('span','nbadge');b.append(s)}s.textContent=String(n)},
@@ -2501,6 +2565,8 @@ const REW={
     const r=Math.random(),want=r<.02?3:r<.12?2:r<.4?1:0;for(let t=want;t>=0;t--){const pool=left.filter(o=>tierOf(o)===t);if(pool.length)return pool[(Math.random()*pool.length)|0]}return left[(Math.random()*left.length)|0]},
   open(free){
     if(free){if(REW.crates()<1)return toast('No free crates');}else if(coins<300)return toast('Not enough coins (a crate is 300)');
+    if(ECON.acct){if(REW.busy)return;REW.busy=1;ECON.ask({t:'econ.crate',free:!!free}).then(r=>{REW.busy=0;if(!r.ok)return toast(r.err);
+      if(!r.id)return toast('You own every cosmetic!'+(free?' Here are 200 coins instead':''));const it=cosOf(r.id);REW.bump('crate');REW.badge();if(it)crateShow(it)});return}
     const it=REW.roll();if(!it){toast('You own every cosmetic! Here are 200 coins instead');if(!free)return;store.set('crates',REW.crates()-1);setCoins(coins+200);return}
     if(free)store.set('crates',REW.crates()-1);else setCoins(coins-300);
     owned.push(it.id);saveCos();REW.bump('crate');REW.badge();crateShow(it);
@@ -2581,7 +2647,9 @@ function renderLocker(root){
       b.querySelector('strong').textContent=o.n;
       b.querySelector('span').textContent=on?'Equipped':has?'Equip':'🪙 '+(o.p>=1000?o.p.toLocaleString():o.p);
       b.onclick=()=>{
-        if(!has){if(coins<o.p)return toast('Not enough coins');setCoins(coins-o.p);owned.push(o.id);toast('Bought '+o.n)}
+        if(!has){if(coins<o.p)return toast('Not enough coins');
+          if(ECON.acct){if(b.busy)return;b.busy=1;ECON.ask({t:'econ.buy',id:o.id}).then(r=>{b.busy=0;if(!r.ok)return toast(r.err);toast('Bought '+o.n);eq[o.t]=o.id;saveCos();draw()});return}
+          setCoins(coins-o.p);owned.push(o.id);toast('Bought '+o.n)}
         eq[o.t]=o.id;saveCos();draw();
       };
       li.append(b);
@@ -2875,9 +2943,9 @@ const arZonePlan={
   tour:{r0:2300,steps:[[55,170,50,7]]}};
 
 /* bots come in four skill tiers, so every match has a mix of easy and hard opponents */
-const BOT_TIERS=[['Rookie','#c08a5a',.5,.6,20],['Regular','#c9d1e0',.64,.74,35],['Skilled','#f2c13d',.77,.86,30],['Elite','#7fe3ff',.89,.97,15]];
+const BOT_TIERS=[['Rookie','#c08a5a',.4,.5,25],['Regular','#c9d1e0',.53,.64,35],['Skilled','#f2c13d',.66,.77,27],['Elite','#7fe3ff',.8,.9,13]];
 function botSkill(r){r=r||Math.random;let x=r()*100;for(const t of BOT_TIERS){if((x-=t[4])<0)return t[2]+r()*(t[3]-t[2])}return .6}
-const botTier=sk=>sk>=.88?3:sk>=.76?2:sk>=.62?1:0;
+const botTier=sk=>sk>=.8?3:sk>=.66?2:sk>=.52?1:0;
 function soloRoster(mode,pool){
   const me={name:user,...myLook(),me:true,bot:false};
   const SK=()=>botSkill(),out=[];
@@ -3063,18 +3131,18 @@ function arenaGame(box,win,opts){
     inp.f=0;inp.r=0;a.t-=dt;
     if(a.t>0){ /* keep last decision, but keep shooting at the current target */
       const tg=a.tgt>=100000?ZB.find(z=>z.id===a.tgt-100000):byId.get(a.tgt);
-      if(tg&&(tg.alive||tg.hp>0)){inp.a=aimAt(f,tg)+(a.aimE||0);if(G&&g.m>0&&ST.t-a.seen>react(f)){const d=Math.hypot(tg.x-f.x,tg.y-f.y);if(d<G.rg*.95&&burstOk(f,a,d,G,dt))inp.f=1}}
+      if(tg&&(tg.alive||tg.hp>0)&&onScreen(f,tg)){inp.a=aimAt(f,tg)+(a.aimE||0);if(G&&g.m>0&&ST.t-a.seen>react(f)){const d=Math.hypot(tg.x-f.x,tg.y-f.y);if(d<G.rg*.95&&burstOk(f,a,d,G,dt))inp.f=1}}
       return}
     a.t=.12+rn()*.08;
-    let tg=null,td=1e9;const sight=MODE==='surv'?1100:680+f.skill*380;
-    for(const o of FS){if(o===f||!o.alive||o.st!=='ground'||(TEAMM.includes(MODE)&&o.team===f.team))continue;const d=Math.hypot(o.x-f.x,o.y-f.y);if(d<td&&d<sight&&arLos(W,f.x,f.y,o.x,o.y)){tg=o;td=d}}
-    if(MODE==='surv'||MODE==='stand'){for(const z of ZB){const d=Math.hypot(z.x-f.x,z.y-f.y);if(d<td&&d<1100&&arLos(W,f.x,f.y,z.x,z.y)){tg=z;td=d}}}
+    let tg=null,td=1e9;
+    for(const o of FS){if(o===f||!o.alive||o.st!=='ground'||(TEAMM.includes(MODE)&&o.team===f.team))continue;const d=Math.hypot(o.x-f.x,o.y-f.y);if(d<td&&onScreen(f,o)&&arLos(W,f.x,f.y,o.x,o.y)){tg=o;td=d}}
+    if(MODE==='surv'||MODE==='stand'){for(const z of ZB){const d=Math.hypot(z.x-f.x,z.y-f.y);if(d<td&&onScreen(f,z)&&arLos(W,f.x,f.y,z.x,z.y)){tg=z;td=d}}}
     {const tid=tg?(tg.t?100000+tg.id:tg.id):-1;if(tg&&a.tgt!==tid)a.seen=ST.t;a.tgt=tid}
     let gx=null,gy=null,mx=0,my=0;
     if(tg){
       const want=G?PREF[g.t]:600,ang=Math.atan2(tg.y-f.y,tg.x-f.x);
       /* aim error: a new wobble each think, smaller for better bots and when standing still */
-      a.aimE=((a.aimE||0)*.45+(1-f.skill)*(1-f.skill)*1.15*(rn()+rn()-1)*.55);inp.a=aimAt(f,tg)+a.aimE;
+      a.aimE=((a.aimE||0)*.4+(1-f.skill)*1.05*(rn()+rn()-1)*.6);inp.a=aimAt(f,tg)+a.aimE;
       a.sdt-=.15;if(a.sdt<=0){a.sdir=-a.sdir;a.sdt=.35+rn()*(1.6-f.skill)}
       let fwd=td>want+90?1:td<want-90?-1:0;if(f.hp<32||!G)fwd=-1;
       mx=Math.cos(ang)*fwd+Math.cos(ang+1.5708)*a.sdir*.9;my=Math.sin(ang)*fwd+Math.sin(ang+1.5708)*a.sdir*.9;
@@ -3126,7 +3194,8 @@ function arenaGame(box,win,opts){
   function aimAt(f,tg){   /* lead a moving target: better bots predict where it will be when the bullet gets there */
     const g=f.g[f.cur],G=g&&GUNS[g.t],sp=G?G.sp:1200,d=Math.hypot(tg.x-f.x,tg.y-f.y),tt=d/sp*Math.min(1,f.skill*1.1);
     const vx=Math.max(-400,Math.min(400,tg.vx||0)),vy=Math.max(-400,Math.min(400,tg.vy||0));return Math.atan2(tg.y+vy*tt-f.y,tg.x+vx*tt-f.x)}
-  const react=f=>.08+(1-f.skill)*.4;
+  const onScreen=(f,o)=>{const dx=(o.x-f.x)/500,dy=(o.y-f.y)/290;return dx*dx+dy*dy<1};   /* about what a player sees on their own screen */
+  const react=f=>.22+(1-f.skill)*.6;
   function burstOk(f,a,d,G,dt){   /* weaker bots hold the trigger and spray; better ones tap at long range */
     if(G.rate<5||d<G.rg*.45)return true;a.bt=(a.bt||0)+dt;const on=.35+f.skill*.25,off=.12+f.skill*.18;if(a.bt>on+off)a.bt=0;return true}
   /* ----- the simulation (solo player or room host) ----- */
@@ -3330,7 +3399,7 @@ function arenaGame(box,win,opts){
     else if(res.k==='br'){const p=res.places.find(x=>x[0]===me)||[me,FS.length,0];const myT=defs[me]&&defs[me].team;win=res.win===me||(BRT&&res.wt!=null&&res.wt===myT);title=win?(BRT?'🏆 Your team wins! Victory Royale!':'🏆 Victory Royale!'):'You placed #'+p[1];sub=p[2]+' elimination'+(p[2]===1?'':'s');coinsWon=(win?400:Math.max(20,(21-p[1])*6))+25*p[2]}
     else if(res.k==='plug'&&PL){const o=PL.endText(res);title=o.title;sub=o.sub||'';coinsWon=o.coins||0;win=!!o.win}
     else{title='The host left the game';sub='Back to the lobby.'}
-    if(!CLAIMED.v&&res.k!=='left'){CLAIMED.v=true;setCoins(coins+coinsWon);AUD.sfx(win?'win':'lose');if(win)REW.bump('win');if(MODE==='hide'){const m=meF();if(m&&m.alive&&m.team===0&&m.role0===0)REW.bump('hider')}}
+    if(!CLAIMED.v&&res.k!=='left'){CLAIMED.v=true;ECON.earn('match',coinsWon);AUD.sfx(win?'win':'lose');if(win)REW.bump('win');if(MODE==='hide'){const m=meF();if(m&&m.alive&&m.team===0&&m.role0===0)REW.bump('hider')}}
     endEl=el('div','bwend');const h=el('h2','',title);const p=el('p','',sub+(coinsWon&&res.k!=='left'?'   +'+coinsWon+' coins':''));
     const row=el('div','row'),b=el('button','btn gold',MP?'Back to lobby':'Play again');
     b.onclick=()=>{stop();win2.stop=MP&&MP.again?MP.again():arenaGame(box,win2,opts)};row.append(b);endEl.append(h,p,row);wrap.append(endEl);
@@ -4329,14 +4398,14 @@ function parkourGame(box,win,opts){
     if(!M&&performance.now()-lastMsg>6000&&!st.over)hostLeft('Lost connection to the host.');
   }
   function hostLeft(msg){
-    if(st.over)return;st.over=true;if(!st.claimed){st.claimed=true;setCoins(coins+self.cleared*15)}
+    if(st.over)return;st.over=true;if(!st.claimed){st.claimed=true;ECON.earn('pk',self.cleared*15)}
     endEl.hidden=false;endEl.innerHTML='';const h=el('h2','','Race ended');const p=el('p','note',msg+' You earned '+self.cleared*15+' coins for the rounds you cleared.');
     const row=el('div','row'),b=el('button','btn gold','Back to lobby');b.onclick=()=>{stop();win.stop=MP.again()};row.append(b);endEl.append(h,p,row);
   }
 
   /* ---------- rounds: one runner out per round ---------- */
   const rewardNow=()=>HC?self.cleared*30+(st.winner===self?400:0)+(self.cleared>=MAXR?300:0):self.cleared*15+(st.winner===self?150:0);
-  function claim(){if(st.claimed)return;st.claimed=true;setCoins(coins+rewardNow())}
+  function claim(){if(st.claimed)return;st.claimed=true;ECON.earn('pk',rewardNow())}
   /* hardcore: the wall of fire. It waits a few seconds, then crawls forward and slowly speeds up; later rounds start faster. */
   /* fire speed as a share of a runner's top speed: 50% in round 1, climbing fast at first and then more slowly, exactly 100% in round 20 */
   const fireFrac=r=>.5+.5*(1-Math.pow(1-(clamp(r,1,MAXR)-1)/(MAXR-1),2.2));
@@ -4681,7 +4750,7 @@ function parkourGame(box,win,opts){
   startRound();cam.x=-80;cam.y=10*T-VH*.62;
   if(MP){
     const applyRS=(u,a)=>{u.tx=a.x;u.ty=a.y;u.vx=a.vx;u.vy=a.vy;u.face=a.f;u.og=!!a.g;if(a.d&&!u.dead)burst(u.x,u.y-18,'#9fc0ff',12);u.dead=!!a.d;u.cp=a.c;lastMsg=performance.now()};
-    sess.on('rs',(from,a)=>{const u=runners.find(x=>x.pid===from);if(u&&a&&u!==self)applyRS(u,a)});
+    sess.on('rs',(from,a)=>{const u=runners.find(x=>x.pid===from);if(u&&a&&u!==self){if(!sess.offline&&!u.bot)ACW.see(from,a.x,0,SPD*2.4,520);applyRS(u,a)}});
     sess.on('bs',(from,a)=>{if(from!==sess.masterId||!a)return;lastMsg=performance.now();for(const b of a.b){const u=runners[b[0]];if(!u||u===self||u.remote)continue;
       u.tx=b[1];u.ty=b[2];u.vx=b[3];u.vy=b[4];u.face=b[5];u.og=!!b[6];if(b[7]&&!u.dead)burst(u.x,u.y-18,'#9fc0ff',12);u.dead=!!b[7];u.cp=b[8]}});
     sess.on('fin2',(from,a)=>{if(from!==sess.masterId||!a)return;const u=runners[a.i];if(!u)return;u.fin=true;u.finT=a.t;u.cleared=a.r;u.place=a.pl;st.order[a.pl-1]=u;
@@ -4765,7 +4834,13 @@ function casinoGame(box,win){
     const finish=(txt,payMul,col)=>{phase='done';if(payMul)setCoins(coins+Math.floor(bet*payMul));msg=txt;AUD.sfx(payMul>1?'win':payMul===1?'click':'lose');render()};
     function stand(){while(val(dh)<17){dh.push(deck.pop());AUD.sfx('card')}const p=val(ph),d=val(dh);
       if(d>21)finish('Dealer busts. You win '+bet+' coins.',2);else if(p>d)finish('You win '+bet+' coins.',2);else if(p===d)finish('Push. Your bet is returned.',1);else finish('Dealer wins.',0)}
-    function deal(){if(bet<=0||bet>coins)return toast('Not enough coins');setCoins(coins-bet);deck=mkDeck();ph=[deck.pop(),deck.pop()];dh=[deck.pop(),deck.pop()];if(STF.jackpot){ph=[{r:14,s:0},{r:13,s:0}];dh=[{r:9,s:1},{r:7,s:2}]}AUD.sfx('card');phase='play';msg='Hit, stand or double';
+    /* signed in, the server shuffles and deals; the page only draws what it sends */
+    let busy=false;
+    const take=r=>{busy=false;if(!r.ok)return toast(r.err||'Try again');ph=r.ph||[];dh=(r.dh||[]).slice();bet=r.bet||bet;AUD.sfx('card');
+      if(r.phase==='play'){while(dh.length<r.dhn)dh.push({r:2,s:0});phase='play';msg='Hit, stand or double';r.show();render()}
+      else{phase='done';msg=r.txt||'';r.show();AUD.sfx(r.mul>1?'win':r.mul===1?'click':'lose');render()}};
+    const bj=(act,extra)=>{if(busy)return;busy=true;ECON.ask({t:'casino.bj',act,...extra},true).then(take)};
+    function deal(){if(bet<=0||bet>coins)return toast('Not enough coins');if(ECON.acct)return bj('deal',{bet});setCoins(coins-bet);deck=mkDeck();ph=[deck.pop(),deck.pop()];dh=[deck.pop(),deck.pop()];if(STF.jackpot){ph=[{r:14,s:0},{r:13,s:0}];dh=[{r:9,s:1},{r:7,s:2}]}AUD.sfx('card');phase='play';msg='Hit, stand or double';
       if(val(ph)===21){if(val(dh)===21)finish('Both have blackjack. Push.',1);else finish('Blackjack! You win '+Math.floor(bet*1.5)+' coins.',2.5)}else render()}
     function render(){
       tb.innerHTML='';const dr=el('div','hand'),pr=el('div','hand');
@@ -4775,6 +4850,7 @@ function casinoGame(box,win){
       if(phase==='bet'||phase==='done'){row.append(chipRow(()=>bet,v=>{bet=v;render()},[10,50,100,500,1000]));
         const d=el('button','btn gold',(phase==='done'?'Next hand':'Deal')+' ('+bet+')');d.onclick=()=>{if(phase==='done'){ph=[];dh=[]}deal()};row.append(d)}
       else{const h=el('button','btn','Hit'),s=el('button','btn alt','Stand'),x=el('button','btn alt','Double');
+        if(ECON.acct){h.onclick=()=>bj('hit');s.onclick=()=>bj('stand');x.disabled=ph.length!==2||coins<bet;x.onclick=()=>bj('double');row.append(h,s,x);tb.append(row);bal();return}
         h.onclick=()=>{ph.push(deck.pop());AUD.sfx('card');if(val(ph)>21)finish('Bust. Dealer wins.',0);else render()};
         s.onclick=stand;x.disabled=ph.length!==2||coins<bet;x.onclick=()=>{setCoins(coins-bet);bet*=2;ph.push(deck.pop());AUD.sfx('card');if(val(ph)>21)finish('Bust. Dealer wins.',0);else stand()};row.append(h,s,x)}
       tb.append(row);bal();
@@ -4789,14 +4865,18 @@ function casinoGame(box,win){
     const OUT=[['red','Red',n=>RED.includes(n),1],['black','Black',n=>n>0&&!RED.includes(n),1],['even','Even',n=>n>0&&n%2===0,1],['odd','Odd',n=>n%2===1,1],['low','1-18',n=>n>=1&&n<=18,1],['high','19-36',n=>n>=19,1],
       ['d1','1st 12',n=>n>=1&&n<=12,2],['d2','2nd 12',n=>n>=13&&n<=24,2],['d3','3rd 12',n=>n>=25,2]];
     const wheel=el('div','wheel','?'),msg=el('div','msg','Place your bets');
-    function put(k){if(spinning)return;if(coins<sel)return toast('Not enough coins');setCoins(coins-sel);AUD.sfx('chip');const b=bets.find(x=>x.k===k);if(b)b.a+=sel;else bets.push({k,a:sel});draw()}
+    const staked=()=>bets.reduce((s,b)=>s+b.a,0);let srvR=null;
+    function put(k){if(spinning)return;if(ECON.acct){if(coins<staked()+sel)return toast('Not enough coins')}else{if(coins<sel)return toast('Not enough coins');setCoins(coins-sel)}AUD.sfx('chip');const b=bets.find(x=>x.k===k);if(b)b.a+=sel;else bets.push({k,a:sel});draw()}
     const jackNum=()=>{let bn=0,bp=-1;for(let n=0;n<37;n++){let pay=0;for(const b of bets){if(typeof b.k==='number'){if(b.k===n)pay+=b.a*36}else{const o=OUT.find(x=>x[0]===b.k);if(o[2](n))pay+=b.a*(o[3]+1)}}if(pay>bp){bp=pay;bn=n}}return bn};
     function spin(){if(spinning||!bets.length)return toast('Place a bet first');spinning=true;let i=0;draw();
-      const iv=setInterval(()=>{if(!alive()){clearInterval(iv);return}wheel.textContent=Math.floor(Math.random()*37);AUD.sfx('spin');if(++i>26){clearInterval(iv);num=STF.jackpot?jackNum():Math.floor(Math.random()*37);resolve()}},85)}
+      if(ECON.acct){srvR=null;ECON.ask({t:'casino.roulette',bets:bets.map(b=>({k:b.k,a:b.a})),jack:STF.jackpot},true).then(r=>{if(!r.ok){toast(r.err);spinning=false;srvR=null;draw();return}srvR=r})}
+      const iv=setInterval(()=>{if(!alive()){clearInterval(iv);return}wheel.textContent=Math.floor(Math.random()*37);AUD.sfx('spin');
+        if(++i>26){if(ECON.acct){if(!spinning){clearInterval(iv);return}if(!srvR)return;clearInterval(iv);num=srvR.num;resolve();return}clearInterval(iv);num=STF.jackpot?jackNum():Math.floor(Math.random()*37);resolve()}},85)}
     function resolve(){
       let pay=0;for(const b of bets){if(typeof b.k==='number'){if(b.k===num)pay+=b.a*36}else{const o=OUT.find(x=>x[0]===b.k);if(o[2](num))pay+=b.a*(o[3]+1)}}
       const total=bets.reduce((s,b)=>s+b.a,0);wheel.textContent=num;wheel.className='wheel '+(num===0?'g':RED.includes(num)?'r':'b');
-      if(pay){setCoins(coins+pay);msg.textContent=num+'. You won '+pay+' coins (bet '+total+').';msg.style.color='#9be8a0';AUD.sfx(pay>total*3?'jackpot':'win')}else{msg.textContent=num+'. No win this time.';msg.style.color='#ff9a9a';AUD.sfx('lose')}
+      if(ECON.acct&&srvR){srvR.show();srvR=null}
+      if(pay){if(!ECON.acct)setCoins(coins+pay);msg.textContent=num+'. You won '+pay+' coins (bet '+total+').';msg.style.color='#9be8a0';AUD.sfx(pay>total*3?'jackpot':'win')}else{msg.textContent=num+'. No win this time.';msg.style.color='#ff9a9a';AUD.sfx('lose')}
       bets=[];spinning=false;bal();draw(true)}
     function draw(keep){
       tb.innerHTML='';tb.append(wheel,msg);if(!keep)msg.style.color='';
@@ -4804,7 +4884,7 @@ function casinoGame(box,win){
       for(let n=1;n<=36;n++){const b=el('button','rn '+(RED.includes(n)?'r':'b'),String(n));b.onclick=()=>put(n);grid.append(b)}
       const out=el('div','rout');OUT.forEach(([k,l])=>{const b=el('button','btn alt',l);b.onclick=()=>put(k);out.append(b)});
       const row=el('div','row');row.append(chipRow(()=>sel,v=>{sel=v},[10,50,100,500]));
-      const sp=el('button','btn gold','Spin');sp.disabled=spinning;sp.onclick=spin;const cl=el('button','btn alt','Clear bets');cl.onclick=()=>{if(spinning)return;bets.forEach(b=>setCoins(coins+b.a));bets=[];draw()};row.append(sp,cl);
+      const sp=el('button','btn gold','Spin');sp.disabled=spinning;sp.onclick=spin;const cl=el('button','btn alt','Clear bets');cl.onclick=()=>{if(spinning)return;if(!ECON.acct)bets.forEach(b=>setCoins(coins+b.a));bets=[];draw()};row.append(sp,cl);
       const bl=el('div','note');bl.textContent=bets.length?'Bets: '+bets.map(b=>(typeof b.k==='number'?'#'+b.k:b.k)+' '+b.a).join(', '):'Tap numbers or the outside bets to place chips.';
       tb.append(grid,out,bl,row);bal();
     }
@@ -4817,10 +4897,14 @@ function casinoGame(box,win){
     const SYM=[['🍒',5,30],['🍋',8,26],['🔔',12,20],['⭐',20,14],['7️⃣',50,7],['💎',100,3]],pool=SYM.flatMap(([s,m,w])=>Array(w).fill(s));
     let bet=10,busy=false;const reels=[0,1,2].map(()=>el('div','reel','🍒')),msg=el('div','msg','Spin to play');
     function spin(){
-      if(busy)return;if(bet>coins)return toast('Not enough coins');setCoins(coins-bet);busy=true;bal();say(msg,'Spinning...');const res=STF.jackpot?['💎','💎','💎']:[0,1,2].map(()=>pool[Math.floor(Math.random()*pool.length)]);
+      if(busy)return;if(bet>coins)return toast('Not enough coins');
+      if(ECON.acct){busy=true;say(msg,'Spinning...');ECON.ask({t:'casino.slots',bet,jack:STF.jackpot},true).then(r=>{if(!r.ok){busy=false;say(msg,r.err||'Try again','#ff9a9a');return}roll(r.res,r)});return}
+      setCoins(coins-bet);busy=true;bal();say(msg,'Spinning...');roll(STF.jackpot?['💎','💎','💎']:[0,1,2].map(()=>pool[Math.floor(Math.random()*pool.length)]),null)}
+    function roll(res,srv){
       reels.forEach((r,i)=>{const stopAt=500+i*450;let t=0;const iv=setInterval(()=>{if(!alive()){clearInterval(iv);return}t+=70;if(t>=stopAt){clearInterval(iv);r.textContent=res[i];r.classList.add('stop');setTimeout(()=>r.classList.remove('stop'),200);AUD.sfx('chip');
           if(i===2){busy=false;const[a,b,c]=res;let mul=0;if(a===b&&b===c)mul=SYM.find(x=>x[0]===a)[1];else if([a,b,c].filter(x=>x==='🍒').length===2)mul=2;
-            if(mul){const p=bet*mul;setCoins(coins+p);say(msg,'You won '+p+' coins! ('+mul+'x)','#9be8a0');AUD.sfx(mul>=20?'jackpot':'win')}else{say(msg,'No match.','#ff9a9a');AUD.sfx('lose')}bal()}}
+            if(srv)srv.show();
+            if(mul){const p=bet*mul;if(!srv)setCoins(coins+p);say(msg,'You won '+p+' coins! ('+mul+'x)','#9be8a0');AUD.sfx(mul>=20?'jackpot':'win')}else{say(msg,'No match.','#ff9a9a');AUD.sfx('lose')}bal()}}
         else{r.textContent=SYM[Math.floor(Math.random()*SYM.length)][0];AUD.sfx('spin')}},70)});
     }
     const rw=el('div','reels');reels.forEach(r=>rw.append(r));
@@ -4833,7 +4917,10 @@ function casinoGame(box,win){
   function poker(){
     root.innerHTML='';root.append(top("Texas Hold'em",true));const tb=el('div','tbl');root.append(tb);
     const BUY=200;if(coins<BUY){tb.append(el('p','note','You need at least '+BUY+' coins to sit at this table.'));return}
-    setCoins(coins-BUY);bal();
+    /* signed in, the buy-in and cash-out go through the server, which caps what one table can pay back */
+    if(ECON.acct&&!poker.seat){tb.append(el('p','note','Sitting down...'));ECON.ask({t:'casino.poker',act:'buyin',n:BUY}).then(r=>{if(!alive())return;if(!r.ok){tb.innerHTML='';tb.append(el('p','note',r.err||'Could not sit down.'));return}poker.seat=1;poker()});return}
+    if(poker.seat)poker.seat=0;else setCoins(coins-BUY);bal();
+    const cash=n=>{if(ECON.acct)ECON.ask({t:'casino.poker',act:'cashout',n});else setCoins(coins+n)};
     const used=new Set([user]),pl=[{name:user,bot:false,stack:BUY}];
     for(let i=1,n=1;pl.length<4&&i<200;i++){const c=botCos(900+i);if(used.has(c.name))continue;used.add(c.name);pl.push({name:c.name,bot:true,stack:BUY,skin:c.skin})}
     let dealer=0,board=[],pot=0,log='',reveal=false,pending=null,over=false,deck=[];
@@ -4852,7 +4939,7 @@ function casinoGame(box,win){
         f.onclick=()=>pending.res('fold');c.onclick=()=>pending.res(toCall?'call':'check');r.disabled=pending.raises>=3||me.stack<=toCall;r.onclick=()=>pending.res('raise');row.append(f,c,r)}
       else if(over){const a=el('button','btn gold','New game');a.onclick=()=>{clearT();poker()};row.append(a)}
       else if(pl[0].stack<=0&&!pending){}
-      const lv=el('button','btn alt','Cash out');lv.onclick=()=>{setCoins(coins+pl[0].stack);pl[0].stack=0;clearT();AUD.sfx('coin');lobby()};row.append(lv);
+      const lv=el('button','btn alt','Cash out');lv.onclick=()=>{cash(pl[0].stack);pl[0].stack=0;clearT();AUD.sfx('coin');lobby()};row.append(lv);
       tb.append(row);
     }
     const strength=(p)=>{if(board.length<3){const[a,b]=p.hand.map(c=>c.r).sort((x,y)=>y-x);return Math.min(1,(a+b-4)/24+(a===b?.3:0)+(p.hand[0].s===p.hand[1].s?.05:0)+(a-b===1?.04:0))}
@@ -4896,7 +4983,7 @@ function casinoGame(box,win){
       const won=live.some(p=>!p.bot&&((live.length===1)||cmpHand(evalHand([...p.hand,...board]),evalHand([...live[0].hand,...board]))>=0));AUD.sfx(pl[0].stack>0&&live.some(p=>p===pl[0])?'win':'lose');
       draw();dealer=(dealer+1)%n;await act(2600);if(!alive())return;
       if(pl[0].stack<=0){log='You are out of chips.';over=true;draw();return}
-      if(pl.filter(p=>p.stack>0).length<=1){log='You cleaned out the table!';setCoins(coins+pl[0].stack);pl[0].stack=0;AUD.sfx('jackpot');over=true;draw();return}
+      if(pl.filter(p=>p.stack>0).length<=1){log='You cleaned out the table!';cash(pl[0].stack);pl[0].stack=0;AUD.sfx('jackpot');over=true;draw();return}
       hand();
     }
     hand();
@@ -4905,7 +4992,7 @@ function casinoGame(box,win){
   let VW=960,VH=540;const WW=1600,WH=1000,TAU=6.283,PR=12,CTRL=mkTrails();
   const unfit=fitStage(box,wrap,(w,h)=>{VW=w;VH=h}),stopTouch=touchUI(wrap,{stick:true,buttons:[{k:'e',t:'USE',tap:true,big:true}]});
   let sess=null;
-  const net=NETUI.attach(wrap,box,'casino',{spots:[[420,640],[620,760],[820,800],[1020,780],[1220,700],[1300,620],[1100,620],[800,640],[560,620]],prox:true,active:()=>WM.active===win.id&&!win.el.classList.contains('min')},s=>{sess=s});
+  const net=NETUI.attach(wrap,box,'casino',{spots:[[420,640],[620,760],[820,800],[1020,780],[1220,700],[1300,620],[1100,620],[800,640],[560,620]],prox:true,active:()=>WM.active===win.id&&!win.el.classList.contains('min')},s=>{sess=s;if(s)s.acMax=230*2.4});
   const P={x:800,y:720,tx:null,ty:null,dir:0,walk:0,moving:false,t:0},cam={x:0,y:0},keys={};
   const SPOTS=[
     {n:'Blackjack',x:380,y:430,w:240,h:130,c:'#1c7a52',shape:'half',fn:()=>openTable(blackjack)},
@@ -4922,7 +5009,7 @@ function casinoGame(box,win){
   const ku=e=>{keys[e.key.toLowerCase()]=false},bl=()=>{for(const k in keys)keys[k]=false};
   addEventListener('keydown',kd);addEventListener('keyup',ku);addEventListener('blur',bl);
   box.querySelector('[data-k=use]').onclick=act;
-  cv.onpointerdown=e=>{if(open)return;const r=cv.getBoundingClientRect();P.tx=(e.clientX-r.left)/r.width*VW+cam.x;P.ty=(e.clientY-r.top)/r.height*VH+cam.y};
+  cv.onpointerdown=e=>{if(open)return;const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*VW+cam.x,y=(e.clientY-r.top)/r.height*VH+cam.y;if(tapPlayer(sess,x,y))return;P.tx=x;P.ty=y};
   const rr=(g,x,y,w,h,r)=>{g.beginPath();g.roundRect?g.roundRect(x,y,w,h,r):g.rect(x,y,w,h)};
   const bg=(()=>{
     const c=document.createElement('canvas');c.width=WW;c.height=WH;const g=c.getContext('2d');
@@ -5141,8 +5228,8 @@ function chessGame(box,win,opts){
   }
   function finish(){
     if(over.win===0){AUD.sfx('click')}
-    else if(mode==='bot'){const w=over.win===human;AUD.sfx(w?'win':'lose');if(w){const r=[10,25,50][level];setCoins(coins+r);over.txt+=' You earned '+r+' coins.'}}
-    else if(mode==='net'){const w=over.win===net.my;AUD.sfx(w?'win':'lose');if(w){setCoins(coins+20);over.txt+=' You earned 20 coins.'}}
+    else if(mode==='bot'){const w=over.win===human;AUD.sfx(w?'win':'lose');if(w){const r=[10,25,50][level];ECON.earn('chess',r);over.txt+=' You earned '+r+' coins.'}}
+    else if(mode==='net'){const w=over.win===net.my;AUD.sfx(w?'win':'lose');if(w){ECON.earn('chess',20);over.txt+=' You earned 20 coins.'}}
     else AUD.sfx('win');
   }
   function botMove(){
@@ -5331,7 +5418,7 @@ const NET=(()=>{
       else if(m.t==='master'){this.masterId=m.id;if(this.onMaster)this.onMaster()}
       else if(m.t==='rpc'){const tg=m.target;if(tg){if(tg==='master'&&!this.isMaster())return;if(tg!=='others'&&tg!=='all'&&tg!=='master'&&tg!==id)return}this.dispatch(m.from,m.name,m.args)}
       else if(m.t==='state'){let p=this.players.get(m.from);if(!p){this.add({id:m.from,name:'Player'});p=this.players.get(m.from)}
-        p.tx=m.s.x;p.ty=m.s.y;p.dir=m.s.dir;p.mv=m.s.mv;p.wk=m.s.wk;p.sz=m.s.sz||1;p.seen=now;if(!p.init){p.x=p.tx;p.y=p.ty;p.init=true}}
+        if(this.acMax&&!this.offline)ACW.see(m.from,m.s.x,m.s.y,this.acMax,420);p.tx=m.s.x;p.ty=m.s.y;p.dir=m.s.dir;p.mv=m.s.mv;p.wk=m.s.wk;p.sz=m.s.sz||1;p.seen=now;if(!p.init){p.x=p.tx;p.y=p.ty;p.init=true}}
       else if(m.t==='chat'){const p=this.players.get(m.from);if(p&&!ACC.isBlocked(p.name)){p.bubble=m.text;p.bt=5;p.seen=now;this.said(p.name,m.text)}}
       else if(m.t==='leave'){if(this.onLeave)this.onLeave(m.from);if(this.players.delete(m.from))this.changed();if(!online&&this.onMaster&&this.isMaster())this.onMaster()}
     }
@@ -5378,7 +5465,7 @@ const NET=(()=>{
     sock.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
       if(m.t==='welcome'){id=m.id;if(Array.isArray(m.ice)&&m.ice.length)ice=m.ice;online=true;connecting=false;retry=0;ACC.config(m);readyRes();for(const s of sessions)s.rejoin();ACC.onWelcome();return}
       if(typeof m.t==='string'&&m.t.indexOf('world.')===0){try{WNET.msg(m)}catch(err){console.error('world message',err)}return}
-      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
+      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm|econ|appeal|ac)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
       receive(m)};
     sock.onclose=()=>{clearTimeout(to);const was=online;online=false;connecting=false;if(ws===sock)ws=null;readyRes();if(was){for(const s of sessions)s.connLost();ACC.onClose()}
       clearTimeout(rtimer);rtimer=setTimeout(connect,Math.min(30000,2000*(++retry)))};
@@ -5387,7 +5474,8 @@ const NET=(()=>{
   openLocal();serverUrl=resolveUrl();connect();
   return{get id(){return id},pending:null,KINDS,list,byCode,make,join,joinCode,joinFriend,fail,quick,ask,receive,ready,refresh:()=>send({t:'who'}),
     online:()=>online,ice:()=>ice,sendRaw:o=>{if(online&&ws&&ws.readyState===1)ws.send(JSON.stringify(o))},
-    mode:()=>online?'online':connecting?'connecting':'local',useTransport:t=>{custom=t},sessions:()=>[...sessions]};
+    mode:()=>online?'online':connecting?'connecting':'local',useTransport:t=>{custom=t},sessions:()=>[...sessions],
+    httpBase:()=>String(serverUrl||'').replace(/^ws/,'http').replace(/\/ws$/,'')};
 })();
 
 const NETUI={
@@ -5435,7 +5523,8 @@ const NETUI={
       const s=ctl.s,close=el('button','btn alt','Close');close.onclick=()=>{pp.hidden=true};
       if(!s||!s.players.size)lst.append(el('p','note','Nobody else is here yet.'));
       else for(const q of s.players.values()){
-        const d=el('div','rrow'),nm=el('span');nm.textContent=staffMark(q.staff)+(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)')+(VOICE.has(q.id)?'   🎙 '+VOICE.stateOf(q.id):'');if(q.staff)nm.classList.add('rb');d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
+        const d=el('div','rrow'),nm=el('span');nm.textContent=staffMark(q.staff)+(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)')+(VOICE.has(q.id)?'   🎙 '+VOICE.stateOf(q.id):'');if(q.staff)nm.classList.add('rb');
+        nm.style.cursor='pointer';nm.title='More options';nm.onclick=()=>playerMenu(q.name,{id:q.id,acct:!!q.acct,staff:q.staff,look:{skin:q.skin,rain:q.rain,hat:q.hat,pat:q.pat,tr:q.tr,kf:q.kf}});d.append(nm);const bs=el('span');bs.style.cssText='display:flex;gap:6px';
         if(q.acct&&ACC.name){
           if(!ACC.friends.some(f=>f.name===q.name)){const af=el('button','btn alt','Add friend');af.onclick=async()=>{const r=await ACC.friend('add',q.name);toast(r.ok?'Friend request sent':r.err);af.remove()};bs.append(af)}
           const gf=el('button','btn gold','Gift');gf.onclick=()=>giftDialog(q.name);bs.append(gf);
@@ -5660,7 +5749,8 @@ function eventGame(box,win,code){
   function stopInner(){if(inner){try{inner()}catch(e){}inner=null}win.el.classList.remove('hc');mountIsland();AUD.music('hub')}
   function boom(pids){for(const pid of pids){const o=pid===NET.id?P:OT.get(pid);if(o)kfxSpawn(KF,'k_void',o.x,o.y-20)}AUD.sfx('lose')}
   function winFx(pid){const o=pid===NET.id?P:OT.get(pid);if(o){kfxSpawn(KF,'k_rainbow',o.x,o.y-20);kfxSpawn(KF,'k_fire',o.x,o.y-30);kfxSpawn(KF,'k_confetti',o.x,o.y-20)}
-    if(pid===NET.id&&!E.paid){E.paid=true;setCoins(coins+1500);toast('🏆 You won the Wheel of Fortune! +1500 coins');AUD.sfx('win')}}
+    if(isM()&&!E.paidTo){E.paidTo=pid;if(signedIn)ACC.req({t:'econ.eventwin',pid})}
+    if(pid===NET.id&&!E.paid){E.paid=true;if(!signedIn)setCoins(coins+1500);toast('🏆 You won the Wheel of Fortune! +1500 coins');AUD.sfx('win')}}
   /* ----- network ----- */
   function wire(){
     s.on('e.st',(from,a)=>{if(from!==s.masterId||!a||!a.E)return;const w=E.winner;Object.assign(E,a.E);if(E.winner&&!w)winFx(E.winner);drawUI()});
@@ -5789,15 +5879,37 @@ const fmtLeft=ms=>{const m=Math.max(1,Math.ceil(ms/60000));if(m<60)return m+' mi
 function banSet(u){
   banUntil=u>Date.now()?u:0;clearInterval(banIv);
   if(!banUntil){if(banEl){banEl.remove();banEl=null}return}
-  if(!banEl){banEl=el('div','banbar');document.body.append(banEl)}
-  const upd=()=>{const left=banUntil-Date.now();if(left<=0){banSet(0);toast('Your multiplayer ban is over. Welcome back!');return}banEl.textContent='🚫 Banned from multiplayer  ·  '+fmtLeft(left)+' left  ·  you can still play offline'};
-  upd();banIv=setInterval(upd,15000);
+  const upd=()=>{if(banUntil-Date.now()<=0){banSet(0);banPage(null);toast('Your ban is over. Welcome back!')}};banIv=setInterval(upd,5000);
+}
+/* the page a banned player sees after signing in: category, reason, a live countdown and an appeal form */
+let BANP=null;
+function banPage(info){
+  if(!info){if(BANP){clearInterval(BANP.iv);BANP.el.remove();BANP=null}return}
+  if(BANP){clearInterval(BANP.iv);BANP.el.remove()}
+  try{NET.sessions().forEach(s=>s.leave())}catch(e){}try{[...WM.wins].forEach(closeWin)}catch(e){}
+  const wrap=el('div','banpage'),c=el('div','bcard');wrap.append(c);wrap.setAttribute('role','alertdialog');
+  const left=()=>{if(info.perm)return'Permanent';const ms=info.until-Date.now();if(ms<=0)return'Ending…';const d=Math.floor(ms/864e5),h=Math.floor(ms/36e5)%24,m=Math.floor(ms/6e4)%60,s=Math.floor(ms/1e3)%60;
+    return (d?d+'d ':'')+(d||h?h+'h ':'')+m+'m '+String(s).padStart(2,'0')+'s'};
+  c.innerHTML='<h1>🚫 You are banned.</h1><div class="note"></div><div class="brow"><b>Category</b><span class="bc"></span><b>Reason</b><span class="br"></span><b>Time Left</b><span class="bleft"></span></div><div class="bapw"></div><div class="bfoot"><span class="note">Signed in as <b class="bn"></b></span><button class="btn alt bout">Sign out</button></div>';
+  c.querySelector('.note').textContent='';c.querySelector('.bc').textContent=info.cat||'Other';c.querySelector('.br').textContent=info.reason||'';c.querySelector('.bn').textContent=user;
+  const lf=c.querySelector('.bleft');const tick=()=>{lf.textContent=left()};tick();
+  c.querySelector('.bout').onclick=()=>{ACC.logout();toast('Signed out')};
+  const ap=c.querySelector('.bapw'),a=info.appeal;
+  const form=()=>{ap.innerHTML='';const t=el('textarea');t.placeholder='Tell the staff why your ban should be lifted. Be honest and polite.';t.maxLength=800;
+    const send=el('button','btn gold bapp','Send appeal');const back=el('button','btn alt','Cancel');const row=el('div','row');row.style.marginTop='8px';row.append(send,back);ap.append(t,row);t.focus();
+    back.onclick=draw;send.onclick=async()=>{send.disabled=true;const r=await ACC.req({t:'ban.appeal',text:t.value});send.disabled=false;if(!r.ok)return toast(r.err);info=r.info||info;toast('Your appeal was sent');draw()}};
+  const draw=()=>{ap.innerHTML='';const a=info.appeal;
+    if(a){const st=el('div','bstat');const when=new Date(a.at).toLocaleString();
+      st.innerHTML=a.status==='open'?'<b>⏳ Appeal sent</b> '+when+'<br>A staff member will read it and either lift the ban or keep it.':'<b>'+(a.status==='kept'?'❌ Appeal reviewed: the ban stays.':'✅ Appeal accepted.')+'</b>'+(a.reply?'<br>Staff reply: <i class="rp"></i>':'');
+      const rp=st.querySelector('.rp');if(rp)rp.textContent=a.reply;const q=el('div','note');q.style.marginTop='8px';q.textContent='You wrote: '+a.text;st.append(q);ap.append(st);
+      if(a.status!=='open'&&Date.now()-a.at>864e5){const b=el('button','btn gold bapp','Click Here to appeal this ban.');b.onclick=form;ap.append(b)}}
+    else{const b=el('button','btn gold bapp','Click Here to appeal this ban.');b.onclick=form;ap.append(b)}};
+  draw();document.body.append(wrap);BANP={el:wrap,iv:setInterval(tick,1000)};
 }
 function banNow(u){   /* the server just banned this account: leave every room and go back to the title screen */
   banSet(u);if(!banUntil)return;
   try{NET.sessions().forEach(s=>s.leave())}catch(e){}
   [...WM.wins].forEach(closeWin);document.querySelectorAll('.win.sub').forEach(x=>x.remove());showTitle();
-  toast('You were banned from multiplayer for '+fmtLeft(banUntil-Date.now())+'. You can still play offline.');
 }
 /* ---------- Staff tools: effects on yourself, everyone, or a whitelist; events; polls ---------- */
 const FXD={speed:1,fly:false,size:1,jackpot:false,aimbot:false,spawn:'',gold:false,god:false};
@@ -5916,7 +6028,7 @@ function lobbyGame(box,win){
   const unfit=fitStage(box,lb,(w,h)=>{VW=w;VH=h});
   const stopTouch=touchUI(lb,{stick:true,buttons:[{k:'e',t:'USE',tap:true,big:true}]});
   let sess=null;
-  const net=NETUI.attach(lb,box,'hub',{spots:[[760,860],[900,960],[1100,960],[1240,860],[1330,720],[1240,600],[1000,520],[760,600],[670,720]],prox:true,active:()=>WM.active===win.id&&!win.el.classList.contains('min')},s=>{sess=s;if(s){wireItems(s);wireChess(s)}});
+  const net=NETUI.attach(lb,box,'hub',{spots:[[760,860],[900,960],[1100,960],[1240,860],[1330,720],[1240,600],[1000,520],[760,600],[670,720]],prox:true,active:()=>WM.active===win.id&&!win.el.classList.contains('min')},s=>{sess=s;if(s)s.acMax=210*2.4;if(s){wireItems(s);wireChess(s)}});
   let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
   const P={x:CX,y:1050,tx:null,ty:null,dir:0,walk:0,moving:false,t:0},cam={x:0,y:0},keys={};
 
@@ -6067,7 +6179,7 @@ function lobbyGame(box,win){
   const bl=()=>{for(const k in keys)keys[k]=false};
   addEventListener('keydown',kd);addEventListener('keyup',ku);addEventListener('blur',bl);
   const pw=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*VW+cam.x,(e.clientY-r.top)/r.height*VH+cam.y]};
-  cv.onpointerdown=e=>{const[x,y]=pw(e);hp.x=x;hp.y=y;if(STF.spawn){holdP=true;return}P.tx=x;P.ty=y};
+  cv.onpointerdown=e=>{const[x,y]=pw(e);hp.x=x;hp.y=y;if(STF.spawn){holdP=true;return}if(tapPlayer(sess,x,y))return;P.tx=x;P.ty=y};
   cv.onpointermove=e=>{if(holdP){const[x,y]=pw(e);hp.x=x;hp.y=y}};
   const pu=()=>{holdP=false};addEventListener('pointerup',pu);
 
@@ -6138,7 +6250,7 @@ function lobbyGame(box,win){
     cx.fillStyle='#e23b3b';cx.fillRect(x-10,y-49,20,4);cx.fillRect(x+4,y-47,4,10);
     cx.strokeStyle='#6b4527';cx.lineWidth=2;cx.beginPath();cx.moveTo(x-11,y-40);cx.lineTo(x-24,y-48+Math.sin(t*2)*3);cx.moveTo(x+11,y-40);cx.lineTo(x+24,y-48);cx.stroke()}
   function award(o){
-    const val=(o.gift?15:3)*(STF.gold?5:1);setCoins(coins+val);AUD.sfx(o.gift?'coin':'gem');
+    const val=(o.gift?15:3)*(STF.gold?5:1);ECON.earn('gem',val);AUD.sfx(o.gift?'coin':'gem');
     const r=cv.getBoundingClientRect(),sx=r.left+(o.x-cam.x)/VW*r.width,sy=r.top+(o.y-cam.y)/VH*r.height;
     float('+'+val,sx,sy);burst(sx,sy,o.gift?'#f2b84b':'#7fd6ff');if(o.gift)killFx(eq.kill,sx,sy);
   }
@@ -6279,9 +6391,11 @@ function flipGame(box){
     const c=box.querySelector('#c3'),r=box.querySelector('#res'),pick=b.dataset.s;
     c.classList.remove('flip');void c.offsetWidth;c.classList.add('flip');
     c.firstChild.textContent='?';r.textContent='Flipping...';r.style.color='var(--text)';
-    setTimeout(()=>{
-      const out=Math.random()<.5?'Heads':'Tails',win=out===pick;
-      setCoins(coins+(win?bet:-bet));
+    const srv=ECON.acct?ECON.ask({t:'casino.flip',bet,pick},true):null;
+    setTimeout(async()=>{
+      let out=Math.random()<.5?'Heads':'Tails';
+      if(srv){const rr=await srv;if(!rr.ok){box.busy=false;r.textContent=rr.err||'Try again';return}out=rr.out;rr.show()}else setCoins(coins+(out===pick?bet:-bet));
+      const win=out===pick;
       c.firstChild.textContent=out;
       r.textContent=(win?'You won ':'You lost ')+bet;r.style.color=win?'var(--good)':'var(--bad)';
       const q=r.getBoundingClientRect();
@@ -6293,6 +6407,33 @@ function flipGame(box){
 }
 
 /* ---------- Accounts, wallet, friends, gifts and global chat (all through the server) ---------- */
+/* ---------- Anti-cheat ----------
+   ACW watches other players' positions as they arrive. Moving much faster than the game allows, again and again, or teleporting
+   over and over, tells the server, which can then record that player's game screen for staff to review. It never punishes by itself. */
+const ACW={m:new Map(),
+  see(pid,x,y,maxV,tp){const now=performance.now();let o=ACW.m.get(pid);if(!o){ACW.m.set(pid,{x,y,t:now,f:[],j:[],sent:-1e9});return}
+    const dt=(now-o.t)/1000;if(dt<.05)return;const d=Math.hypot(x-o.x,y-o.y);o.x=x;o.y=y;o.t=now;if(dt>1.5)return;
+    if(tp&&d>tp)o.j.push(now);else if(d/dt>maxV)o.f.push(now);
+    o.f=o.f.filter(t=>now-t<15e3);o.j=o.j.filter(t=>now-t<20e3);
+    if((o.f.length>=8||o.j.length>=5)&&now-o.sent>6e5){o.sent=now;const fast=o.f.length>=8;
+      NET.sendRaw({t:'ac.suspect',target:pid,why:fast?'moving too fast':'teleporting',detail:fast?o.f.length+' times faster than '+Math.round(maxV)+'/s in 15 s':o.j.length+' jumps in 20 s'});o.f=[];o.j=[]}}};
+/* ACREC records only the game's own canvas (never the camera, the microphone or other tabs) when the server asks */
+const ACREC={busy:false,
+  pick(){let best=null,ba=0;for(const c of document.querySelectorAll('.win canvas, .win.page canvas')){const r=c.getBoundingClientRect();const a=r.width*r.height;if(a>ba&&r.width>80&&c.isConnected){ba=a;best=c}}return best},
+  start(m){if(ACREC.busy||!m||!m.id)return;const fail=err=>{ACREC.busy=false;NET.sendRaw({t:'ac.fail',id:m.id,err})};
+    if(typeof MediaRecorder==='undefined')return fail('this browser cannot record');ACREC.busy=true;
+    const t0=performance.now(),want=Math.min(30,+m.secs||30)*1000;
+    const wait=()=>{const cv=ACREC.pick();if(cv)return go(cv);if(performance.now()-t0>want)return fail('not playing a game');setTimeout(wait,1000)};
+    const go=cv=>{let st,rec;try{st=cv.captureStream(12);const types=['video/webm;codecs=vp8','video/webm;codecs=vp9','video/webm'];const mt=types.find(x=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(x))||'';
+        rec=new MediaRecorder(st,mt?{mimeType:mt,videoBitsPerSecond:350000}:{videoBitsPerSecond:350000})}catch(e){return fail('could not record: '+e.message)}
+      const parts=[],r0=performance.now();rec.ondataavailable=e=>{if(e.data&&e.data.size)parts.push(e.data)};
+      rec.onstop=async()=>{try{st.getTracks().forEach(t=>t.stop())}catch(e){}const secs=(performance.now()-r0)/1000;const blob=new Blob(parts,{type:'video/webm'});
+        if(!blob.size)return fail('empty recording');if(blob.size>2.3e6)return fail('recording too big');
+        const b=new Uint8Array(await blob.arrayBuffer());const CH=18000;
+        for(let i=0;i<b.length;i+=CH){let bin='';const sub=b.subarray(i,i+CH);for(let k=0;k<sub.length;k++)bin+=String.fromCharCode(sub[k]);NET.sendRaw({t:'ac.chunk',id:m.id,d:btoa(bin)});await new Promise(r=>setTimeout(r,90))}
+        NET.sendRaw({t:'ac.done',id:m.id,secs});ACREC.busy=false};
+      rec.start(1000);const left=want-(performance.now()-t0);const iv=setInterval(()=>{if(!cv.isConnected||performance.now()-r0>Math.max(5000,left)){clearInterval(iv);try{rec.stop()}catch(e){}}},500)};
+    wait()}};
 const ACC=(()=>{
   let n=0,dt=0;const reqs=new Map(),subs=new Set();
   const blocked=new Map(store.get('blocked',[]).map(n=>[String(n).toLowerCase(),String(n)]));   /* lowercase name -> name as typed */
@@ -6306,20 +6447,21 @@ const ACC=(()=>{
   });
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
-  function applyWallet(u){quiet(+u.coins||0);xp=+u.xp||0;store.set('xp',xp);drawLv();owned=Array.isArray(u.owned)&&u.owned.length?u.owned.slice():DEFAULT_COS.slice();eq={...eq,...(u.eq||{})};store.set('owned',owned);store.set('eq',eq)}
-  const signed=(v)=>{signedIn=v;if(!v){banSet(0);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
+  function applyWallet(u){ECON.enter(u);quiet(+u.coins||0);xp=+u.xp||0;store.set('xp',xp);drawLv();owned=Array.isArray(u.owned)&&u.owned.length?u.owned.slice():DEFAULT_COS.slice();eq={...eq,...(u.eq||{})};store.set('owned',owned);store.set('eq',eq)}
+  const signed=(v)=>{signedIn=v;if(!v){if(WMEM.acct)ECON.leave();banSet(0);banPage(null);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
   A.onClose=()=>fire('conn');
   A.msg=m=>{switch(m.t){
-    case'auth.ok':A.name=m.user.name;A.info=m.user;banSet(m.user.ban||0);if(m.user.ban>Date.now())toast('You are banned from multiplayer for '+fmtLeft(m.user.ban-Date.now())+'. You can still play offline.');A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
+    case'auth.ok':A.name=m.user.name;A.info=m.user;banSet(m.user.ban||0);banPage(m.user.ban>Date.now()?m.user.banInfo:null);A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
       applyWallet(m.user);user=A.name;signedIn=true;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();done(m,{ok:true});fire('auth');fire('friends');break;
     case'auth.err':if(!reqs.has(m.req)){A.token='';store.set('token','')}done(m,{ok:false,err:m.err});break;
     case'auth.out':signed(false);break;
     case'user.party':{const had=PARTY.cur;PARTY.cur=m.party;if(!had&&m.party&&m.party.leader!==NET.id){const L=m.party.members.find(x=>x.id===m.party.leader);toast('🎉 You joined '+(L?L.name+'\'s':'a')+' party. The leader picks the game.')}if(PARTY.cb)PARTY.cb();break}
     case'user.partyinv':partyInvite(m);break;
     case'user.partygo':{if(PARTY.cur&&PARTY.cur.leader===NET.id)break;const g=GAMES.find(x=>x.id===m.game);if(g){toast(m.leader+' started '+g.name);openGame(g)}break}
-    case'user.ban':if(A.info)A.info.ban=m.ban;banNow(m.ban);break;
+    case'user.ban':if(A.info){A.info.ban=m.ban;A.info.banInfo=m.info}banNow(m.ban);banPage(m.ban>Date.now()?m.info:null);break;
+    case'ac.rec':ACREC.start(m);break;
     case'user.fx':admApply(m.fx);break;
     case'user.poll':pollShow(m.poll);break;
     case'user.announce':annShow(m);break;
@@ -6334,23 +6476,23 @@ const ACC=(()=>{
     case'user.event':eventCall(m);break;
     case'user.eventend':eventEnded();break;
     case'friend.res':if(!NET.fail(m.req,m.err))done(m,m);break;
-    case'gift.res':case'email.res':case'reset.res':case'report.res':case'admin.res':done(m,m);break;
-    case'acct.push':if(m.coins!=null)quiet(m.coins);if(m.owned){owned=m.owned.slice();store.set('owned',owned)}toast('The owner updated your account');fire('wallet');break;
+    case'gift.res':case'email.res':case'reset.res':case'report.res':case'admin.res':case'econ.res':case'appeal.res':done(m,m);break;
+    case'acct.push':if(m.coins!=null)setCoins(m.coins,true);if(m.owned){owned=m.owned.slice();store.set('owned',owned)}toast('The owner updated your account');fire('wallet');break;
     case'user.update':A.info=m.user;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();fire('auth');break;
-    case'gift.in':quiet(coins+m.amount);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
-    case'wallet.set':quiet(m.coins);toast('The server corrected your balance.');break;
+    case'gift.in':setCoins(coins+m.amount,true);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
+    case'wallet.set':ECON.apply(m);fire('wallet');break;
     case'g.history':chan(m.ch).msgs=(Array.isArray(m.msgs)?m.msgs:[]).slice();fire('chat');break;
     case'g.msg':{const c=chan(m.ch);c.msgs.push({from:m.from,text:m.text,ts:m.ts,staff:m.staff||''});if(c.msgs.length>100)c.msgs.shift();fire('chat');break}
     case'g.count':chan(m.ch).n=m.n;fire('chat');break;
     case'g.del':{const c=chan(m.ch);c.msgs=c.msgs.filter(x=>!(x.ts===m.ts&&x.from===m.from));fire('chat');break}
     case'g.clear':chan(m.ch).msgs=[];fire('chat');break;
   }};
-  A.register=(u,p)=>A.req({t:'auth.register',u,p,w:{coins,xp,owned,eq}});
+  A.register=(u,p)=>A.req({t:'auth.register',u,p});   /* a new account starts fresh: nothing from the guest wallet goes with it */
   A.login=(u,p)=>A.req({t:'auth.login',u,p});
   A.logout=()=>{NET.sendRaw({t:'auth.logout',token:A.token});A.token='';store.set('token','');signed(false)};
-  A.syncNow=()=>{clearTimeout(dt);if(A.name&&NET.online())NET.sendRaw({t:'wallet.sync',coins,xp,owned,eq})};
+  A.syncNow=()=>{clearTimeout(dt);if(A.name&&NET.online())NET.sendRaw({t:'wallet.sync',eq})};   /* only what you wear; the server owns coins, XP and items */
   ACCHOOK.dirty=()=>{if(!A.name)return;clearTimeout(dt);dt=setTimeout(A.syncNow,1500)};
-  A.gift=async(to,amount)=>{A.syncNow();const r=await A.req({t:'gift',to,amount});if(r.ok){setCoins(coins-amount);A.ledger.push({t:Date.now(),text:'Gifted '+amount+' coins to '+to});fire('wallet')}return r};
+  A.gift=async(to,amount)=>{const r=await A.req({t:'gift',to,amount});if(r.ok){setCoins(r.balance,true);A.ledger.push({t:Date.now(),text:'Gifted '+amount+' coins to '+to});fire('wallet')}return r};
   A.friend=(act,name)=>A.req({t:'friend.'+act,name});
   A.say=(ch,text)=>NET.sendRaw({t:'g.say',ch,text});
   A.join=ch=>NET.sendRaw({t:'g.join',ch});
@@ -6462,6 +6604,23 @@ function voiceUI(win,s,ctxFn){
 function modal(build){
   const o=el('div','gmodal'),b=el('div','gbox');o.append(b);const close=()=>o.remove();o.onclick=e=>{if(e.target===o)close()};document.body.append(o);build(b,close);return o;
 }
+const BAN_CATS=['Cheating','Harassment','Inappropriate language','Scamming','Spam','Ban evasion','Other'];
+const BAN_DEFAULT='You have violated this sites rules, and have been banned. If you would like to appeal this ban, click the button below.';
+function banForm(name,o){o=o||{};
+  modal((b,close)=>{
+    b.append(el('h2','','Ban '+name));
+    const st='width:100%;margin-bottom:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit';
+    const cat=el('select');BAN_CATS.forEach(c=>{const x=el('option','',c);x.value=c;if(c===(o.cat||'Other'))x.selected=true;cat.append(x)});cat.setAttribute('aria-label','Category');
+    const rs=el('textarea');rs.rows=3;rs.maxLength=300;rs.placeholder='Reason (empty: "'+BAN_DEFAULT+'")';rs.value=o.reason&&o.reason!==BAN_DEFAULT?o.reason:'';rs.setAttribute('aria-label','Reason');
+    const du=el('select');[['1','1 hour'],['24','1 day'],['72','3 days'],['168','7 days'],['720','30 days'],['perm','Permanent']].forEach(([v,t])=>{const x=el('option','',t);x.value=v;if(v==='24')x.selected=true;du.append(x)});du.setAttribute('aria-label','How long');
+    for(const f of[cat,rs,du])f.style.cssText=st;
+    const lab=t=>{const l=el('div','note',t);l.style.margin='4px 0';return l};
+    const err=el('p','rmsg'),go2=el('button','btn gold','Ban'),no=el('button','btn alt','Cancel'),row=el('div','row');no.onclick=close;row.append(go2,no);
+    go2.onclick=async()=>{go2.disabled=true;const perm=du.value==='perm';const r=await ACC.req({t:'admin.ban',name,cat:cat.value,reason:rs.value,perm,hours:perm?0:+du.value,ac:o.ac,rep:o.rep});go2.disabled=false;
+      if(!r.ok){err.textContent=r.err||'That did not work';return}toast(name+' is banned');close();if(o.done)o.done()};
+    b.append(lab('Category'),cat,lab('Reason the player sees'),rs,lab('How long'),du,err,row);
+  });
+}
 function reportDialog(t){
   modal((b,close)=>{
     b.append(el('h2','','Report '+t.label));
@@ -6474,16 +6633,60 @@ function reportDialog(t){
     b.append(sel,note,err,row,el('p','note','The last few chat messages are attached to help the moderators. Three reports from different people mute a player for a while, automatically.'));
   });
 }
-function playerMenu(name,ch){
+/* click a player anywhere (chat, People list, in a game) for everything you can do with them */
+function playerMenu(name,o){
+  if(typeof o==='string'||o==null)o={ch:o};const me=name===ACC.name||name===user;
+  const look=o.look||null,ids=look?lookIds(look):[];
   modal((b,close)=>{
-    b.append(el('h2','',name));const col=el('div');col.style.cssText='display:flex;flex-direction:column;gap:8px';
-    const btn=(t,cls,fn)=>{const x=el('button','btn '+cls,t);x.onclick=()=>{close();fn()};col.append(x)};
-    if(ACC.name&&!ACC.friends.some(f=>f.name===name))btn('Add friend','alt',async()=>{const r=await ACC.friend('add',name);toast(r.ok?'Friend request sent':r.err)});
-    if(ACC.name)btn('Gift coins','gold',()=>giftDialog(name));
-    btn('Report','alt',()=>reportDialog({label:name,payload:{name,ch}}));
-    btn(ACC.isBlocked(name)?'Unblock':'Block','alt',()=>{ACC.isBlocked(name)?ACC.unblock(name):ACC.block(name);toast(ACC.isBlocked(name)?name+' is blocked: you will not see their messages':name+' is unblocked')});
-    const c=el('button','btn alt','Close');c.onclick=close;col.append(c);b.append(col);
+    const head=el('div','pmhead');const cv=document.createElement('canvas');cv.width=cv.height=96;const cx=cv.getContext('2d');cx.scale(1.5,1.5);
+    try{drawAvatar(cx,32,58,{skin:look?look.skin:'#4f8cff',rainbow:!!(look&&look.rain),pat:look&&look.pat||'',hat:look?look.hat:'h_none',dir:0,s:1,t:performance.now()/1000})}catch(e){}
+    const hn=el('div');const h=el('h2','');h.textContent=staffMark(o.staff||'')+name;if(o.staff)h.classList.add('rb');h.style.margin='0';
+    const sub=el('div','note');sub.textContent=o.acct===false?'Guest':ACC.friends.some(f=>f.name===name)?'Your friend':o.acct?'Player':'';hn.append(h,sub);head.append(cv,hn);b.append(head);
+    const col=el('div','pmgrid');
+    const btn=(t,cls,fn,keep)=>{const x=el('button','btn '+cls,t);x.onclick=()=>{if(!keep)close();fn(x)};col.append(x);return x};
+    if(!me){
+      const signed=!!ACC.name,isFr=ACC.friends.some(f=>f.name===name),acct=o.acct!==false;
+      if(signed&&acct&&!isFr)btn('➕ Add friend','alt',async()=>{const r=await ACC.friend('add',name);toast(r.ok?'Friend request sent':r.err)});
+      if(signed&&isFr)btn('💬 Message','alt',()=>dmOpen(name));
+      if(signed&&acct)btn('🎉 Invite to party','alt',()=>{const send=()=>{NET.sendRaw({t:'party.invite',target:name});if(isFr)NET.sendRaw({t:'dm.invite',with:name});toast('Party invite sent to '+name)};
+        if(!PARTY.cur){NET.sendRaw({t:'party.create',name:user});setTimeout(send,400)}else send()});
+      if(signed&&acct)btn('🪙 Gift coins','alt',()=>giftDialog(name));
+      if(o.id&&typeof VOICE!=='undefined'&&VOICE.has(o.id))btn(VOICE.isMutedFor(o.id)?'🔊 Unmute voice':'🔇 Mute voice','alt',()=>VOICE.muteFor(o.id,!VOICE.isMutedFor(o.id)));
+      btn('🚩 Report','alt',()=>reportDialog({label:name,payload:o.id?{target:o.id}:{name,ch:o.ch}}));
+      btn(ACC.isBlocked(name)?'✅ Unblock':'⛔ Block','alt',()=>{const was=ACC.isBlocked(name);was?ACC.unblock(name):ACC.block(name);if(o.id&&typeof VOICE!=='undefined'&&VOICE.has(o.id))VOICE.muteFor(o.id,!was);toast(ACC.isBlocked(name)?name+' is blocked: you will not see their messages':name+' is unblocked')});
+    }
+    b.append(col);
+    /* their look: buy the pieces you do not have, then wear it */
+    if(look&&!me){
+      const need=ids.filter(id=>!owned.includes(id)),cost=need.reduce((t,id)=>t+cosOf(id).p,0);
+      const box=el('div','pmlook');const t=el('div','note');t.textContent='Their look: '+ids.map(id=>cosOf(id).n).join(' · ');box.append(t);
+      const wear=()=>{for(const id of ids){const c=cosOf(id);eq[c.t]=id}saveCos();toast('You are wearing '+name+'\'s look');try{AUD.sfx('coin')}catch(e){}};
+      const bb=el('button','btn gold',need.length?'🛍️ Buy their look  ·  🪙 '+cost.toLocaleString():'👕 Wear their look');bb.style.width='100%';
+      bb.onclick=async()=>{if(!need.length){wear();close();return}if(coins<cost)return toast('Not enough coins ('+cost.toLocaleString()+' needed)');bb.disabled=true;
+        for(const id of need){if(ECON.acct){const r=await ECON.ask({t:'econ.buy',id});if(!r.ok){bb.disabled=false;return toast(r.err)}}else{setCoins(coins-cosOf(id).p);owned.push(id)}}
+        wear();close()};
+      box.append(bb);b.append(box);
+    }
+    const c=el('button','btn alt','Close');c.onclick=close;c.style.cssText='width:100%;margin-top:10px';b.append(c);
   });
+}
+/* cosmetic ids behind a look (skin colour + pattern, hat, trail, kill effect) */
+function lookIds(l){const out=[];if(!l)return out;
+  const sk=COS.find(c=>c.t==='skin'&&(l.rain?c.id==='s_rainbow':(String(c.c).toLowerCase()===String(l.skin).toLowerCase()&&(c.pat||'')===(l.pat||''))));if(sk)out.push(sk.id);
+  for(const id of[l.hat,l.tr,l.kf]){const c=id&&COS.find(x=>x.id===id);if(c&&c.p>0||c&&!/none$/.test(c.id))out.push(c.id)}return [...new Set(out)].filter(id=>{const c=COS.find(x=>x.id===id);return c&&!/_none$/.test(id)})}
+/* tapping another player's character in the lobby or casino opens their menu */
+function tapPlayer(sess,x,y){if(!sess||sess.offline)return false;let best=null,bd=34*34;
+  for(const q of sess.players.values()){const dx=q.x-x,dy=(q.y-26)-y,d=dx*dx+dy*dy*.6;if(d<bd){bd=d;best=q}}
+  if(!best)return false;playerMenu(best.name,{id:best.id,acct:!!best.acct,staff:best.staff,look:{skin:best.skin,rain:best.rain,hat:best.hat,pat:best.pat,tr:best.tr,kf:best.kf}});return true}
+/* a 👥 button in every online game: everyone in the room, click one for the menu */
+function peopleList(){
+  const ses=NET.sessions().filter(x=>!x.offline&&!x.dead);const all=new Map();for(const x of ses)for(const q of x.players.values())if(q.name)all.set(q.id,q);
+  modal((b,close)=>{b.append(el('h2','','👥 Players here'));const l=el('div','rlist');l.style.maxHeight='55vh';
+    if(!all.size)l.append(el('p','note','Nobody else is here.'));
+    for(const q of all.values()){const d=el('button','pmrow');const nm=el('span');nm.textContent=staffMark(q.staff)+(q.acct?'✓ ':'')+q.name+(q.acct?'':'  (guest)');if(q.staff)nm.classList.add('rb');
+      const cv=document.createElement('canvas');cv.width=cv.height=36;const cx=cv.getContext('2d');cx.scale(.56,.56);try{drawAvatar(cx,32,60,{skin:q.skin||'#4f8cff',rainbow:!!q.rain,pat:q.pat||'',hat:q.hat||'h_none',dir:0,s:1,t:0})}catch(e){}
+      d.append(cv,nm);d.onclick=()=>{close();playerMenu(q.name,{id:q.id,acct:!!q.acct,staff:q.staff,look:{skin:q.skin,rain:q.rain,hat:q.hat,pat:q.pat,tr:q.tr,kf:q.kf}})};l.append(d)}
+    const c=el('button','btn alt','Close');c.onclick=close;c.style.cssText='width:100%;margin-top:10px';b.append(l,c)});
 }
 function giftDialog(name){
   modal((b,close)=>{
@@ -6571,7 +6774,7 @@ function renderAccount(v){
       go2.onclick=submit;p.addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
       p.append(err,go2);
       if(mode==='in'){const fg=el('button','btn alt','Forgot password?');fg.style.cssText='margin-top:12px;margin-left:8px';fg.onclick=()=>{mode='reset';step=1;draw()};p.append(fg)}
-      p.append(el('p','note',mode==='up'?'Your current coins, level and cosmetics move into the new account. Usernames are 3 to 16 letters, numbers or underscores; passwords need at least 8 characters.':'Signing in loads your saved coins, level and cosmetics from the server.'));
+      p.append(el('p','note',mode==='up'?'New accounts start fresh with 100 coins; coins you have as a guest stay with the guest. Your coins, level and items are kept on the server. To keep games fair, if something looks like cheating, your game screen (only the game, never your camera) may be recorded for up to 30 seconds for moderators to review. Usernames are 3 to 16 letters, numbers or underscores; passwords need at least 8 characters.':'Signing in loads your saved coins, level and cosmetics from the server.'));
     }
     blockedBox(p);v.append(p);
     for(const[lab,val,foc]of kept){const i=lab&&[...p.querySelectorAll('input')].find(x=>x.getAttribute('aria-label')===lab&&!x.value&&!x.readOnly);if(i&&val){i.value=val;if(foc)i.focus()}}
@@ -6593,8 +6796,8 @@ function renderAdmin(v){
   const stopAll=()=>{clearInterval(timer);if(off){off();off=null}if(ACC.cur){NET.sendRaw({t:'g.leave',ch:ACC.cur});ACC.cur=null}};
   const setTab=t=>{stopAll();tab=t;draw()};
   function draw(){
-    tabs.innerHTML='';[['over','Overview'],...(OWN?[['ev','🎡 Event']]:[]),['pl','Players'],['chat','Chat'],['dm','Messages'],['rep','Reports'],['log','Audit log']].forEach(([k,n])=>tabs.append(btn(n,k===tab?'':'alt',()=>setTab(k))));
-    body.innerHTML='';({over:overview,ev:eventTab,pl:players,chat:chat,dm:dms,rep:reports,log:audit})[tab]();
+    tabs.innerHTML='';[['over','Overview'],...(OWN?[['ev','🎡 Event']]:[]),['pl','Players'],['chat','Chat'],['dm','Messages'],['rep','Reports'],['ac','🛡️ Anti-cheat'],['ap','Appeals'],['log','Audit log']].forEach(([k,n])=>tabs.append(btn(n,k===tab?'':'alt',()=>setTab(k))));
+    body.innerHTML='';({over:overview,ev:eventTab,pl:players,chat:chat,dm:dms,rep:reports,ac:anticheat,ap:appeals,log:audit})[tab]();
   }
   /* direct messages between players, for safety checks (reading one is written to the audit log) */
   function dms(){
@@ -6633,6 +6836,7 @@ function renderAdmin(v){
       s.players.forEach(x=>{const d=el('div','frow'),g=el('div','grow'),n=el('b');n.textContent=staffMark(x.staff)+x.name+(x.acct?'':'  (guest)');if(x.staff)n.classList.add('rb');const sm=el('small');sm.textContent=(x.room||'not in a room')+(x.ip?'   ·   '+x.ip:'');g.append(n,sm);d.append(g);
         const locked=x.staff&&(!OWN||x.staff==='owner');
         if(x.acct&&x.acct!==ACC.name&&!(locked&&x.staff==='owner'))d.append(btn('Manage','alt',()=>{who=x.acct;setTab('pl')}));
+        if(x.acct!==ACC.name&&!locked)d.append(btn('🎥 Record','alt',async()=>{const r=await call('acrecord',{id:x.id});if(r.ok)toast('Recording '+x.name+'\'s screen for 30 s. It will show up in Anti-cheat.')}));
         if(x.acct!==ACC.name&&!locked)d.append(btn('Kick','alt',async()=>{if(confirm('Disconnect '+x.name+'?')){await call('kick',{id:x.id});load()}}));pl.append(d)});
     };
     load();timer=setInterval(load,6000);
@@ -6643,7 +6847,7 @@ function renderAdmin(v){
       who=nm.value.trim();out.innerHTML='';if(!who)return;const r=await call('lookup',{name:who});if(!r.ok)return;const u=r.u,c=el('div');c.style.marginTop='12px';
       c.append(el('h3','',u.name+(u.owner?'  (owner)':u.admin?'  (admin)':'')+'   ·   '+(u.online?'online':'offline')));
       const info=el('p','note');info.textContent=u.coins.toLocaleString()+' coins   ·   '+u.xp.toLocaleString()+' xp   ·   '+u.owned+' cosmetics   ·   '+u.friends+' friends   ·   joined '+new Date(u.created).toLocaleDateString()+(u.email?'   ·   email '+u.email+(u.verified?' (verified)':''):'');c.append(info);
-      if(u.ban){const x=el('p','note');x.style.color='#ffb3b3';x.textContent='Banned until '+when(u.ban);c.append(x)}
+      if(u.ban){const x=el('p','note');x.style.color='#ffb3b3';x.textContent=(u.perm?'Banned permanently':'Banned until '+when(u.ban))+'   ·   '+(u.banCat||'Other')+'   ·   '+(u.banReason||'');c.append(x)}
       if(u.muted){const x=el('p','note');x.style.color='#ffd28a';x.textContent='Muted until '+when(u.muted);c.append(x)}
       const r1=el('div','row'),am=inp('Amount','140px','number');am.value=1000;
       const co=async mode=>{const x=await call('coins',{name:u.name,amount:+am.value,mode});if(x.ok){toast(u.name+' now has '+x.coins.toLocaleString()+' coins');look()}};
@@ -6651,7 +6855,7 @@ function renderAdmin(v){
       if(OWN&&!u.owner){const r5=el('div','row');r5.append(btn(u.admin?'Remove admin':'Make admin',u.admin?'alt':'gold',async()=>{const x=await call('setadmin',{name:u.name,on:!u.admin});if(x.ok){toast(u.name+(x.admin?' is now an admin':' is no longer an admin'));look()}}),el('span','note',u.admin?'Admins get a rainbow nametag and moderation tools.':'Admins get a rainbow nametag, and can mute, ban, kick and delete chat.'));c.append(r5)}
       if(!u.owner&&(OWN||!u.admin)){
         const r3=el('div','row');r3.append(el('span','note','Ban: '));
-        [['1 hour',1],['1 day',24],['7 days',168],['Permanent',87600]].forEach(([t,h])=>r3.append(btn(t,'alt',async()=>{if(confirm('Ban '+u.name+' for '+t+'?')){const x=await call('ban',{name:u.name,hours:h});if(x.ok){toast('Banned');look()}}})));
+        r3.append(btn(u.ban?'Change ban…':'Ban…','alt',()=>banForm(u.name,{cat:u.banCat,reason:u.banReason,done:look})));
         r3.append(btn('Lift ban','gold',async()=>{const x=await call('ban',{name:u.name,hours:0});if(x.ok){toast('Ban lifted');look()}}));c.append(r3);
         const r4=el('div','row');r4.append(el('span','note','Mute: '));
         [['10 minutes',10],['1 hour',60],['1 day',1440]].forEach(([t,m])=>r4.append(btn(t,'alt',async()=>{const x=await call('mute',{name:u.name,minutes:m});if(x.ok){toast('Muted');look()}})));
@@ -6688,9 +6892,47 @@ function renderAdmin(v){
       if(x.note){const n=el('p','note');n.textContent='"'+x.note+'"';d.append(n)}
       if(x.evidence&&x.evidence.length){const pre=el('pre');pre.style.cssText='white-space:pre-wrap;font-size:12px;background:rgba(0,0,0,.25);padding:8px;border-radius:8px;margin:6px 0';pre.textContent=x.evidence.map(e=>e.from+': '+e.text).join('\n');d.append(pre)}
       const row=el('div','row');row.style.marginTop='4px';
-      for(const[a,t]of[['dismiss','Dismiss'],['mute','Mute 1 hour'],['ban','Ban 24 hours']])row.append(btn(t,a==='dismiss'?'alt':'gold',async()=>{const z=await call('resolve',{id:x.id,action:a});if(z.ok){toast('Done');draw()}}));
+      for(const[a,t]of[['dismiss','Dismiss'],['mute','Mute 1 hour']])row.append(btn(t,a==='dismiss'?'alt':'gold',async()=>{const z=await call('resolve',{id:x.id,action:a});if(z.ok){toast('Done');draw()}}));
+      if(x.acct)row.append(btn('Ban…','gold',()=>banForm(x.target,{cat:{cheating:'Cheating',harassment:'Harassment',name:'Inappropriate language',spam:'Spam'}[x.reason]||'Other',rep:x.id,done:draw})));
       d.append(row);p.append(d);
     });
+    body.append(p);
+  }
+  /* clips recorded when something looked like cheating. Watch, then ban or dismiss with ✕ */
+  async function anticheat(){
+    const r=await call('ac',{all:false});if(tab!=='ac'||!r.ok)return;const p=box('🛡️ Anti-cheat');
+    p.append(el('p','note','When the server or another player\'s game sees something impossible (coins from nowhere, rewards claimed too fast, moving too fast, a cheating report), the player\'s game screen is recorded for up to 30 seconds. Watch the clip: ban them if it looks bad, or press ✕ if it is fine.'));
+    if(!r.list.length)p.append(el('p','note','Nothing to review. 🎉'));
+    r.list.forEach(f=>{
+      const d=el('div','frow acrow');d.style.cssText='flex-direction:column;align-items:stretch;gap:6px';
+      const top=el('div','row');top.style.cssText='margin:0;justify-content:space-between;align-items:center';
+      const h=el('div');const b=el('b');b.textContent=f.name+(f.acct?'':' (guest)')+'   ·   '+f.why+(f.n>1?'   ×'+f.n:'');const sm=el('small');sm.style.display='block';sm.textContent=when(f.ts)+(f.room?'   ·   '+f.room:'')+'   ·   clip: '+(f.clip?(f.secs?Math.round(f.secs)+' s':'ready'):f.rec||'none');h.append(b,sm);
+      const x=btn('✕','alt',async()=>{const z=await call('acdismiss',{id:f.id});if(z.ok){toast('Dismissed');draw()}});x.title='Looks fine';x.setAttribute('aria-label','Looks fine, dismiss');x.style.cssText='min-width:44px;font-size:18px';
+      top.append(h,x);d.append(top);
+      const det=el('div','note');det.textContent=(f.detail||[]).join('  ·  ');d.append(det);
+      const row=el('div','row');row.style.marginTop='0';
+      if(f.clip)row.append(btn('▶ Watch','gold',async()=>{const z=await call('acclip',{id:f.id});if(!z.ok)return;const v=document.createElement('video');v.controls=true;v.autoplay=true;v.playsInline=true;v.muted=true;
+        v.style.cssText='width:100%;max-height:60vh;background:#000;border-radius:10px';v.src=NET.httpBase()+z.path;const old=d.querySelector('video');if(old)old.remove();d.append(v)}));
+      if(f.acct)row.append(btn('Ban…','gold',()=>banForm(f.name,{cat:'Cheating',reason:'',ac:f.id,done:draw})));
+      d.append(row);p.append(d)});
+    body.append(p);
+  }
+  /* ban appeals: lift the ban, or keep it (optionally with a new category or reason the player will see) */
+  async function appeals(){
+    const r=await call('appeals',{});if(tab!=='ap'||!r.ok)return;const p=box('Ban appeals');
+    if(!r.list.length)p.append(el('p','note','No open appeals.'));
+    r.list.forEach(x=>{
+      const d=el('div','frow');d.style.cssText='flex-direction:column;align-items:stretch;gap:6px';
+      const b=el('b');b.textContent=x.name+'   ·   '+(x.perm?'permanent':x.ban?'until '+when(x.ban):'ban over');const sm=el('small');sm.textContent='Category: '+(x.cat||'-')+'   ·   Reason: '+(x.reason||'-');
+      const q=el('div','bstat');q.style.cssText='background:rgba(0,0,0,.25);padding:10px;border-radius:8px;white-space:pre-wrap';q.textContent='"'+x.appeal.text+'"   ('+when(x.appeal.at)+')';
+      const rp=el('textarea');rp.rows=2;rp.maxLength=300;rp.placeholder='Reply to the player (optional, they will see it)';
+      const cat=el('select');r.cats.forEach(c=>{const o=el('option','',c);o.value=c;if(c===x.cat)o.selected=true;cat.append(o)});cat.setAttribute('aria-label','Category');
+      const rs=el('textarea');rs.rows=2;rs.maxLength=300;rs.placeholder='New reason (leave empty to keep the current one)';
+      for(const f of[rp,rs,cat])f.style.cssText='width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit';
+      const row=el('div','row');row.style.marginTop='0';
+      row.append(btn('Lift the ban','gold',async()=>{const z=await call('appeal',{name:x.name,act:'lift',reply:rp.value});if(z.ok){toast('Ban lifted');draw()}}),
+        btn('Keep banned','alt',async()=>{const z=await call('appeal',{name:x.name,act:'keep',reply:rp.value,cat:cat.value,reason:rs.value});if(z.ok){toast('The ban stays. '+x.name+' can see your answer.');draw()}}));
+      d.append(b,sm,q,rp,el('div','note','If you keep the ban, you can change what they see:'),cat,rs,row);p.append(d)});
     body.append(p);
   }
   async function audit(){

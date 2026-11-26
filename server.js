@@ -108,7 +108,7 @@ async function loadDb(){
       await new Promise(r=>setTimeout(r,2000));
     }
   }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];db.dm=db.dm&&typeof db.dm==='object'?db.dm:{};
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];db.dm=db.dm&&typeof db.dm==='object'?db.dm:{};db.ac=Array.isArray(db.ac)?db.ac:[];
   /* accounts made by older versions may be missing fields: fill them in so nothing downstream ever sees undefined */
   for(const a of Object.values(db.accounts)){
     if(!Array.isArray(a.owned)||!a.owned.length)a.owned=cosList(a.owned);
@@ -170,7 +170,7 @@ const maskEmail=e=>{if(!e)return'';const[u,d]=e.split('@');return u[0]+'***@'+d}
 const mkCode=()=>String(crypto.randomInt(0,1000000)).padStart(6,'0');
 const hCode=(c,salt)=>sha(c+':'+salt);
 const timingEq=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b)};
-const userView=a=>({ban:a.ban>Date.now()?a.ban:0,name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
+const userView=a=>({rew:rewView(a),ban:a.ban>Date.now()?a.ban:0,banInfo:banView(a),name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
 const revokeTokens=a=>{for(const h in db.tokens)if(db.tokens[h].k===a.key)delete db.tokens[h]};
 const kickAccount=(a,reason)=>{const oc=online.get(a.key);if(oc){oc.send({t:'kicked',reason});oc.kill(1000,'signed out')}};
 function ledger(a,text){a.ledger.push({t:Date.now(),text});if(a.ledger.length>50)a.ledger.shift()}
@@ -262,7 +262,53 @@ function enter(c,room,p,req){
 function unbind(c){const a=c.acct;if(!a)return;c.acct=null;if(online.get(a.key)===c){online.delete(a.key);presence(a.key)}}
 function banLeft(ms){const m=Math.max(1,Math.ceil(ms/60000));if(m<60)return m+' minute'+(m===1?'':'s');const h=Math.floor(m/60),r=m%60;if(h<48)return h+'h'+(r?' '+r+'m':'');return Math.ceil(h/24)+' days'}
 /* a ban no longer locks the account: you can sign in, but multiplayer rooms refuse you until it runs out */
-function applyBan(a,until){a.ban=until>Date.now()?until:0;touch();const c=online.get(a.key);if(c){if(a.ban&&c.room)leaveRoom(c);c.send({t:'user.ban',ban:a.ban})}}
+const BAN_CATS=['Cheating','Harassment','Inappropriate language','Scamming','Spam','Ban evasion','Other'],PERM=8.64e15;
+const BAN_DEFAULT='You have violated this sites rules, and have been banned. If you would like to appeal this ban, click the button below.';
+/* what a banned player sees: category, reason, when it ends, and where their appeal stands */
+const banView=a=>a.ban>Date.now()?{until:a.ban,perm:a.ban>=PERM,cat:a.banCat||'Other',reason:a.banReason||BAN_DEFAULT,appeal:a.appeal?{text:a.appeal.text,at:a.appeal.at,status:a.appeal.status,reply:a.appeal.reply||''}:null}:null;
+function applyBan(a,until,cat,reason){a.ban=until>Date.now()?until:0;
+  if(a.ban){a.banCat=BAN_CATS.includes(cat)?cat:(a.banCat&&cat==null?a.banCat:'Other');if(reason!=null)a.banReason=clean(reason,300)||BAN_DEFAULT;else if(!a.banReason)a.banReason=BAN_DEFAULT}
+  else{a.banCat='';a.banReason='';if(a.appeal&&a.appeal.status==='open')a.appeal.status='lifted'}
+  touch();const c=online.get(a.key);if(c){if(a.ban&&c.room)leaveRoom(c);if(a.ban&&c.party)partyLeave(c);c.send({t:'user.ban',ban:a.ban,info:banView(a)})}}
+function appealMsg(c,m){const a=c.acct,reply=(ok,err)=>c.send({t:'appeal.res',req:m.req,ok,err,info:a?banView(a):null});
+  if(!a||!(a.ban>Date.now()))return reply(false,'You are not banned.');
+  const text=clean(m.text,800);if(text.length<5)return reply(false,'Write a little more about why the ban should be lifted.');
+  if(a.appeal&&a.appeal.status==='open')return reply(false,'Your appeal is waiting for a staff member.');
+  if(a.appeal&&Date.now()-a.appeal.at<864e5)return reply(false,'You can appeal again 24 hours after your last appeal.');
+  a.appeal={text,at:Date.now(),status:'open',reply:'',cat:a.banCat,reason:a.banReason};audit('appeal',a.name,text.slice(0,80));touch();
+  for(const x of conns.values())if(staffLevel(x))x.send({t:'notice',text:a.name+' sent a ban appeal. See Admin > Appeals.'});reply(true)}
+/* ---------- anti-cheat: something looks wrong, so the player's game screen is recorded for up to 30 s for staff to review ---------- */
+const CLIPS=path.join(DATA,'clips');try{fs.mkdirSync(CLIPS,{recursive:true})}catch(e){}
+if(!Array.isArray(db.ac))db.ac=[];
+const clipTickets=new Map(),clipMem=new Map(),acLast=new Map(),acSusp=new Map();
+function acReport(c,why,detail,force){
+  if(!c||!c.alive)return null;const now=Date.now(),who=c.acct?c.acct.key:'ip:'+c.ip;if(c.acct&&staffOf(c.acct)&&!force)return null;
+  if(!Array.isArray(db.ac))db.ac=[];let f=db.ac.find(x=>x.who===who&&x.open&&now-x.ts<600e3);
+  if(f){f.n++;if(f.detail.length<6)f.detail.push(clean(detail,160));touch();if(!force)return f}
+  else{f={id:crypto.randomBytes(5).toString('hex'),ts:now,who,name:c.acct?c.acct.name:(c.p&&c.p.name)||'guest',acct:!!c.acct,why:clean(why,40),detail:[clean(detail,160)],n:1,room:c.room&&rooms.get(c.room)?rooms.get(c.room).name:'',clip:null,open:true};
+    db.ac.push(f);if(db.ac.length>200)db.ac.splice(0,db.ac.length-200);touch()}
+  /* one recording per player every 10 minutes, at most 30 kept */
+  if(force||now-(acLast.get(who)||0)>600e3){acLast.set(who,now);f.rec='asked';c.acRec={id:f.id,parts:[],size:0,at:now};c.send({t:'ac.rec',id:f.id,secs:30})}
+  for(const x of conns.values())if(staffLevel(x))x.send({t:'ac.new',id:f.id,name:f.name,why:f.why});
+  return f}
+function acMsg(c,m){const now=Date.now();
+  if(m.t==='ac.suspect'){   /* another player's game saw something impossible (speed, teleport, aim). It only starts a recording. */
+    const tc=conns.get(String(m.target||''));if(!tc||tc===c||!c.room||tc.room!==c.room)return;
+    if(tc.fxAt&&now-tc.fxAt<36e5)return;   /* staff gave them speed or flying */
+    const k=c.id+'>'+tc.id;if(now-(acSusp.get(k)||0)<600e3)return;acSusp.set(k,now);acReport(tc,clean(m.why,40)||'gameplay','seen by '+((c.p&&c.p.name)||'a player')+': '+clean(m.detail,120));return}
+  if(m.t==='ac.self'){const k='self:'+c.id;if(now-(acSusp.get(k)||0)<600e3)return;acSusp.set(k,now);acReport(c,clean(m.why,40)||'client',clean(m.detail,120));return}
+  const R=c.acRec;if(!R||R.id!==m.id)return;
+  if(m.t==='ac.chunk'){const d=String(m.d||'');if(R.size+d.length>3.2e6||R.parts.length>200){c.acRec=null;return}R.parts.push(d);R.size+=d.length;return}
+  if(m.t==='ac.done'||m.t==='ac.fail'){c.acRec=null;const f=db.ac.find(x=>x.id===R.id);if(!f)return;
+    if(m.t==='ac.fail'||!R.parts.length){f.rec='failed: '+clean(m.err,80);touch();return}
+    const buf=Buffer.from(R.parts.join(''),'base64');f.clip=f.id+'.webm';f.rec='ok';f.secs=num(m.secs||0,0,40);f.bytes=buf.length;clipMem.set(f.clip,buf);
+    fs.writeFile(path.join(CLIPS,f.clip),buf,()=>{});
+    const withClip=db.ac.filter(x=>x.clip);while(withClip.length>30){const o=withClip.shift();fs.unlink(path.join(CLIPS,o.clip),()=>{});clipMem.delete(o.clip);o.clip=null;o.rec='deleted (old)'}
+    while(clipMem.size>8)clipMem.delete(clipMem.keys().next().value);touch()}
+}
+function clipServe(res,ticket){const t=clipTickets.get(ticket);if(!t||t.exp<Date.now()){res.writeHead(403);return res.end('expired')}
+  const send=b=>{res.writeHead(200,{'Content-Type':'video/webm','Content-Length':b.length,'Cache-Control':'private, no-store','Access-Control-Allow-Origin':'*'});res.end(b)};
+  const b=clipMem.get(t.file);if(b)return send(b);fs.readFile(path.join(CLIPS,t.file),(e,d)=>{if(e){res.writeHead(404);return res.end('gone')}send(d)})}
 function bind(c,a,req,token){
   unbind(c);const old=online.get(a.key);
   if(old&&old!==c){old.send({t:'kicked',reason:'You signed in from another place.'});old.acct=null;online.delete(a.key);old.kill(1000,'signed in elsewhere')}
@@ -289,8 +335,8 @@ async function authMsg(c,m){
     if(Object.keys(db.accounts).length>=LIM.accounts)return fail('Sign ups are closed right now.');
     const salt=crypto.randomBytes(16),hash=await pwHash(p,salt);
     if(db.accounts[key(u)])return fail('That username is taken.');
-    const w=m.w&&typeof m.w==='object'?m.w:{};
-    const a={name:u,key:key(u),salt:salt.toString('hex'),hash:hash.toString('hex'),created:Date.now(),coins:int(w.coins,0,LIM.startCoinsMax,100),xp:int(w.xp,0,1e6,0),owned:cosList(w.owned),eq:eqObj(w.eq),
+    /* a new account always starts fresh: coins, XP and items a guest had in the browser are never carried over */
+    const a={name:u,key:key(u),salt:salt.toString('hex'),hash:hash.toString('hex'),created:Date.now(),coins:100,xp:0,owned:cosList(null),eq:eqObj(null),
       friends:{},ledger:[],gift:{d:'',n:0},lastSync:Date.now(),fails:0,lock:0,muted:0,email:'',emailVerified:false,ban:0};
     db.accounts[a.key]=a;touch();return bind(c,a,m.req,newToken(a));
   }
@@ -302,12 +348,88 @@ async function authMsg(c,m){
     a.fails=0;return bind(c,a,m.req,newToken(a));
   }
 }
-function walletSync(c,m){
-  const a=c.acct;if(!a)return;const now=Date.now(),secs=Math.max(1,(now-a.lastSync)/1000);
-  const coins=int(m.coins,0,1e9,a.coins);
-  /* spending is always accepted; big jumps upward are not (the games run in the browser, so this is a sanity cap, not anti-cheat) */
-  if(coins>a.coins+20000+300*secs){c.send({t:'wallet.set',coins:a.coins,xp:a.xp});return}
-  a.coins=coins;a.xp=int(m.xp,0,1e6,a.xp);a.owned=cosList(m.owned);a.eq=eqObj(m.eq);a.lastSync=now;touch();
+function walletSync(c,m){   /* the browser may only change what you wear, and only to things you own; coins, XP and items live here */
+  const a=c.acct;if(!a)return;const e=eqObj(m.eq);for(const k in e)if(!a.owned.includes(e[k]))e[k]=a.eq[k];a.eq=e;a.lastSync=Date.now();touch();
+}
+/* ---------- the economy: every coin an account gets or spends goes through here ----------
+   Games run in the browser, so earnings are asked for, never set: each kind of reward has a most-per-event, a shortest gap
+   between claims and a daily cap. Shop items, crates and the casino are decided on the server. */
+const COSP={"s_blue": 0, "s_mint": 60, "s_rose": 60, "s_sun": 80, "s_grape": 80, "s_ember": 100, "s_lime": 120, "s_frost": 150, "s_coral": 180, "s_cloud": 200, "s_slate": 200, "s_obsidian": 250, "s_forest": 280, "s_bubblegum": 300, "s_gold": 350, "s_rosegold": 350, "s_neon": 400, "s_midnight": 450, "s_toxic": 450, "s_camo": 550, "s_tiger": 650, "s_carbon": 700, "s_marble": 750, "s_lava": 900, "s_galaxy": 1200, "s_circuit": 1500, "s_rainbow": 5000, "h_none": 0, "h_cap": 0, "h_beanie": 60, "h_shades": 100, "h_band": 120, "h_flower": 140, "h_halo": 150, "h_bucket": 150, "h_hardhat": 160, "h_beret": 170, "h_cone": 180, "h_earmuffs": 190, "h_headphones": 200, "h_top": 200, "h_grad": 220, "h_pirate": 240, "h_ninja": 250, "h_party": 260, "h_wizard": 280, "h_chef": 300, "h_cowboy": 320, "h_viking": 420, "h_crown": 500, "h_knight": 650, "h_astro": 900, "h_rainbow": 3500, "t_none": 0, "t_spark": 120, "t_dots": 150, "t_bubbles": 180, "t_leaves": 200, "t_snow": 210, "t_hearts": 220, "t_notes": 240, "t_stars": 260, "t_smoke": 280, "t_bolt": 300, "t_fire": 300, "t_coins": 350, "t_skull": 400, "t_rainbow": 800, "k_none": 0, "k_pop": 100, "k_confetti": 250, "k_stars": 350, "k_ghost": 400, "k_fire": 500, "k_lightning": 600, "k_coins": 750, "k_void": 1000, "k_rainbow": 1500};
+const ECON={play:{max:2,gap:25e3},match:{max:600,gap:20e3},pk:{max:1200,gap:25e3},chess:{max:50,gap:45e3},gem:{max:15,gap:400,day:800},adv:{max:300,gap:0},quest:{max:200,gap:2e3,cnt:3}};
+const EARN_DAY=6000,STREAK=[50,75,100,150,200,250,400],lvOf=x=>Math.floor(Math.sqrt(x/40))+1;
+const dayStr=t=>{const d=new Date(t||Date.now());return d.getUTCFullYear()+'-'+(d.getUTCMonth()+1)+'-'+d.getUTCDate()};
+function rewOf(a){if(!a.rew||typeof a.rew!=='object')a.rew={};const r=a.rew;if(r.day!==today()){r.day=today();r.earned=0;r.by={};r.quests=0}r.by=r.by||{};r.crates=r.crates|0;r.lv=r.lv|0;r.advs=Array.isArray(r.advs)?r.advs:[];r.streak=r.streak||{last:'',n:0};r.poker=r.poker||{d:'',p:0};return r}
+const rewView=a=>{const r=rewOf(a),d=dayStr(),y=dayStr(Date.now()-864e5);return{crates:r.crates,lv:r.lv,quests:r.quests,daily:r.streak.last!==d,sn:r.streak.last===d||r.streak.last===y?r.streak.n:0,advs:r.advs,earned:r.earned|0,cap:EARN_DAY}};
+function walletPush(c,a,extra){c.send({t:'wallet.set',coins:a.coins,xp:a.xp,owned:a.owned,rew:rewView(a),...extra})}
+function addCoins(a,n,note){a.coins=Math.max(0,Math.min(1e9,a.coins+n));if(n>0)a.xp=Math.min(1e7,(a.xp||0)+n);if(note)ledger(a,note);touch()}
+function acFlag(c,why,detail){try{acReport(c,why,detail)}catch(e){console.log('acFlag',e)}}
+const SLOT=[['🍒',5,30],['🍋',8,26],['🔔',12,20],['⭐',20,14],['7️⃣',50,7],['💎',100,3]],SLOTP=SLOT.flatMap(([x,,w])=>Array(w).fill(x));
+const RED=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36],ROUT={red:[n=>RED.includes(n),1],black:[n=>n>0&&!RED.includes(n),1],even:[n=>n>0&&n%2===0,1],odd:[n=>n%2===1,1],low:[n=>n>=1&&n<=18,1],high:[n=>n>=19,1],d1:[n=>n>=1&&n<=12,2],d2:[n=>n>=13&&n<=24,2],d3:[n=>n>=25,2]};
+const rnd=n=>crypto.randomInt(n);
+const mkDeck=()=>{const d=[];for(let s=0;s<4;s++)for(let r=2;r<=14;r++)d.push({r,s});for(let i=d.length-1;i>0;i--){const j=rnd(i+1);[d[i],d[j]]=[d[j],d[i]]}return d};
+const bjv=h=>{let t=0,x=0;for(const q of h){if(q.r===14){x++;t+=11}else t+=Math.min(10,q.r)}while(t>21&&x){t-=10;x--}return t};
+function econMsg(c,m){
+  const a=c.acct,reply=(ok,err,extra)=>c.send({t:'econ.res',req:m.req,ok,err,...extra});
+  if(!a)return reply(false,'Sign in first.');
+  const r=rewOf(a),now=Date.now(),staff=staffOf(a),jack=(c.jack||0)>now||(!!m.jack&&!!staff);   /* a jackpot only counts when staff turned it on for this player */
+  const ok=(extra)=>reply(true,null,{coins:a.coins,xp:a.xp,owned:a.owned,rew:rewView(a),...extra});
+  switch(m.t){
+    case'econ.earn':{const why=String(m.why),R=ECON[why];if(!R)return reply(false,'Unknown reward.');
+      let n=Math.floor(+m.n);const cap=why==='gem'&&(staff||(c.gold||0)>now)?R.max*5:R.max;
+      if(!(n>0))return reply(false,'Nothing to add.');
+      if(n>cap){acFlag(c,'economy','asked for '+n+' coins from "'+why+'" (most is '+cap+')');n=cap}
+      const last=(c.earnT||(c.earnT={}))[why]||0;if(now-last<R.gap){if(now-last<R.gap/3)acFlag(c,'economy','"'+why+'" rewards claimed too fast');return reply(false,'Too soon.')}
+      if(R.cnt&&(r.quests|0)>=R.cnt)return reply(false,'All of today\'s quest rewards are claimed.');
+      if(why==='adv'){const id=String(m.ref||'').slice(0,24);if(!id||r.advs.includes(id))return reply(false,'Already claimed.');r.advs.push(id);if(r.advs.length>80)r.advs.shift()}
+      if(R.day){r.by[why]=(r.by[why]|0)+n;if(r.by[why]>R.day)return reply(false,'Daily limit reached for this reward.')}
+      if((r.earned|0)+n>EARN_DAY){n=Math.max(0,EARN_DAY-(r.earned|0));if(!n)return reply(false,'You have earned the most coins from games for today. More tomorrow!')}
+      c.earnT[why]=now;r.earned=(r.earned|0)+n;if(why==='quest'){r.quests=(r.quests|0)+1;if(r.quests===3)r.crates++}
+      addCoins(a,n);return ok({n})}
+    case'econ.daily':{const y=dayStr(now-864e5),d=dayStr(now);if(r.streak.last===d)return reply(false,'Already claimed today.');
+      const n=r.streak.last===y?r.streak.n+1:1,amt=STREAK[(n-1)%7];r.streak={last:d,n};if(n%7===0)r.crates++;addCoins(a,amt,'Daily reward (day '+n+')');return ok({n:amt,day:n})}
+    case'econ.level':{const L=Math.floor(+m.L);if(L%5||L>lvOf(a.xp)||L<=r.lv||L!==r.lv-(r.lv%5)+5)return reply(false,'Not yet.');r.lv=L;r.crates++;addCoins(a,100*L,'Level '+L+' reward');return ok({n:100*L})}
+    case'econ.spend':{const n=Math.floor(+m.n);if(!(n>0&&n<=1e7))return reply(false,'Bad amount.');if(a.coins<n)return reply(false,'Not enough coins.');addCoins(a,-n);return ok({})}
+    case'econ.buy':{const id=String(m.id);const p=COSP[id];if(p==null)return reply(false,'No such item.');if(a.owned.includes(id))return reply(false,'You already own it.');
+      if(a.coins<p)return reply(false,'Not enough coins.');addCoins(a,-p,'Bought '+id);a.owned.push(id);touch();return ok({id})}
+    case'econ.crate':{const free=!!m.free;if(free){if(r.crates<1)return reply(false,'No free crates.')}else if(a.coins<300)return reply(false,'Not enough coins (a crate is 300).');
+      const left=Object.keys(COSP).filter(id=>COSP[id]>0&&!a.owned.includes(id));
+      if(!left.length){if(free){r.crates--;addCoins(a,200,'Crate refund')}return ok({id:null})}
+      const tier=p=>p>=1000?3:p>=400?2:p>=200?1:0,x=rnd(1000)/1000,want=x<.02?3:x<.12?2:x<.4?1:0;let pick=null;
+      for(let t=want;t>=0&&!pick;t--){const pool=left.filter(id=>tier(COSP[id])===t);if(pool.length)pick=pool[rnd(pool.length)]}if(!pick)pick=left[rnd(left.length)];
+      if(free)r.crates--;else addCoins(a,-300);a.owned.push(pick);touch();return ok({id:pick})}
+    case'econ.eventwin':{   /* only the owner running the Wheel of Fortune can pay its winner, and only to someone in the event */
+      if(a.key!==OWNER_KEY||!eventRoom||c.room!==eventRoom.id)return reply(false,'Not allowed.');const w=[...eventRoom.members].find(x=>x.id===m.pid);
+      if(!w||!w.acct||w.acct.ewin===eventRoom.id)return reply(false,'No account to pay.');w.acct.ewin=eventRoom.id;addCoins(w.acct,1500,'Won the Wheel of Fortune');walletPush(w,w.acct);return reply(true)}
+    /* ---- casino: the server deals, spins and flips ---- */
+    case'casino.slots':{const bet=Math.floor(+m.bet);if(![10,50,100,500].includes(bet))return reply(false,'Bad bet.');if(a.coins<bet)return reply(false,'Not enough coins');
+      const res=jack?['💎','💎','💎']:[0,1,2].map(()=>SLOTP[rnd(SLOTP.length)]);let mul=0;if(res[0]===res[1]&&res[1]===res[2])mul=SLOT.find(x=>x[0]===res[0])[1];else if(res.filter(x=>x==='🍒').length===2)mul=2;
+      addCoins(a,-bet);if(mul)addCoins(a,bet*mul);return ok({res,mul,win:bet*mul})}
+    case'casino.flip':{const bet=Math.floor(+m.bet);if(!(bet>0&&bet<=5000))return reply(false,'Bad bet.');if(a.coins<bet)return reply(false,'Not enough coins');
+      const out=rnd(2)?'Heads':'Tails',win=out===m.pick;addCoins(a,win?bet:-bet);return ok({out,win})}
+    case'casino.roulette':{const bets=Array.isArray(m.bets)?m.bets.slice(0,60):[];let tot=0;for(const b of bets){b.a=Math.floor(+b.a);if(!(b.a>0)||!(typeof b.k==='number'?b.k>=0&&b.k<=36&&Number.isInteger(b.k):ROUT[b.k]))return reply(false,'Bad bet.');tot+=b.a}
+      if(!tot||tot>10000)return reply(false,'Bad bet.');if(a.coins<tot)return reply(false,'Not enough coins');
+      const payOf=n=>bets.reduce((s,b)=>s+(typeof b.k==='number'?(b.k===n?b.a*36:0):(ROUT[b.k][0](n)?b.a*(ROUT[b.k][1]+1):0)),0);
+      let num=rnd(37);if(jack){let bp=-1;for(let n=0;n<37;n++){const p=payOf(n);if(p>bp){bp=p;num=n}}}
+      const pay=payOf(num);addCoins(a,pay-tot);return ok({num,pay,total:tot})}
+    case'casino.bj':{const B=c.bj||(c.bj={phase:'bet'}),act=String(m.act);
+      const view=(extra)=>({phase:B.phase,ph:B.ph,dh:B.phase==='play'?[B.dh[0]]:B.dh,dhn:B.dh?B.dh.length:0,bet:B.bet,...extra});
+      const end=(mul,txt)=>{B.phase='done';if(mul)addCoins(a,Math.floor(B.bet*mul));return ok(view({mul,txt}))};
+      const stand=()=>{while(bjv(B.dh)<17)B.dh.push(B.deck.pop());const p=bjv(B.ph),d=bjv(B.dh);return d>21?end(2,'Dealer busts. You win '+B.bet+' coins.'):p>d?end(2,'You win '+B.bet+' coins.'):p===d?end(1,'Push. Your bet is returned.'):end(0,'Dealer wins.')};
+      if(act==='deal'){if(B.phase==='play')return reply(false,'Finish this hand first.');const bet=Math.floor(+m.bet);if(![10,50,100,500,1000].includes(bet))return reply(false,'Bad bet.');if(a.coins<bet)return reply(false,'Not enough coins');
+        addCoins(a,-bet);B.bet=bet;B.deck=mkDeck();B.ph=[B.deck.pop(),B.deck.pop()];B.dh=[B.deck.pop(),B.deck.pop()];if(jack){B.ph=[{r:14,s:0},{r:13,s:0}];B.dh=[{r:9,s:1},{r:7,s:2}]}B.phase='play';
+        if(bjv(B.ph)===21)return bjv(B.dh)===21?end(1,'Both have blackjack. Push.'):end(2.5,'Blackjack! You win '+Math.floor(B.bet*1.5)+' coins.');return ok(view())}
+      if(B.phase!=='play')return reply(false,'Deal first.');
+      if(act==='hit'){B.ph.push(B.deck.pop());if(bjv(B.ph)>21)return end(0,'Bust. Dealer wins.');return ok(view())}
+      if(act==='stand')return stand();
+      if(act==='double'){if(B.ph.length!==2||a.coins<B.bet)return reply(false,'You cannot double now.');addCoins(a,-B.bet);B.bet*=2;B.ph.push(B.deck.pop());if(bjv(B.ph)>21)return end(0,'Bust. Dealer wins.');return stand()}
+      return reply(false,'Bad move.')}
+    case'casino.poker':{   /* poker is against bots in the browser, so a table can pay back at most 4x what you sat down with (all four stacks), and 2000 coins of winnings a day */
+      const P=r.poker.d===today()?r.poker:(r.poker={d:today(),p:0});
+      if(m.act==='buyin'){const n=Math.floor(+m.n);if(!(n>0&&n<=5000))return reply(false,'Bad amount.');if(a.coins<n)return reply(false,'Not enough coins');addCoins(a,-n);c.pk={buy:n,at:now};return ok({})}
+      if(m.act==='cashout'){const B=c.pk;if(!B)return reply(false,'Nothing to cash out.');let n=Math.max(0,Math.min(Math.floor(+m.n)||0,B.buy*4));const prof=n-B.buy;
+        if(prof>0&&P.p+prof>2000){n=B.buy+Math.max(0,2000-P.p);acFlag(c,'economy','poker winnings over the daily cap')}P.p+=Math.max(0,n-B.buy);c.pk=null;addCoins(a,n);return ok({n})}
+      return reply(false,'Bad move.')}
+  }
 }
 function gift(c,m){
   const reply=(ok,err,extra)=>c.send({t:'gift.res',req:m.req,ok,err,...extra});
@@ -315,13 +437,15 @@ function gift(c,m){
   const to=db.accounts[key(m.to)];if(!to)return reply(false,'No player with that username.');
   if(to===a)return reply(false,'You cannot gift yourself.');
   const amt=int(m.amount,0,LIM.giftMax,0);if(amt<1)return reply(false,'Pick an amount from 1 to '+LIM.giftMax+'.');
+  if(Date.now()-a.created<3*864e5&&!staffOf(a))return reply(false,'New accounts can send gifts after 3 days.');
+  if(lvOf(a.xp||0)<5&&!staffOf(a))return reply(false,'You can send gifts from level 5.');
   if(a.coins<amt)return reply(false,'You do not have that many coins.');
   if(a.gift.d!==today())a.gift={d:today(),n:0};
   if(a.gift.n+amt>LIM.giftDay)return reply(false,'Daily gift limit reached ('+LIM.giftDay+' coins a day). You can still send '+Math.max(0,LIM.giftDay-a.gift.n)+'.');
   const nowT=Date.now();if(a.lastGift&&nowT-a.lastGift<2000)return reply(false,'Slow down a moment.');
   a.lastGift=nowT;a.coins-=amt;a.gift.n+=amt;to.coins+=amt;
   ledger(a,'Gifted '+amt+' coins to '+to.name);ledger(to,'Received '+amt+' coins from '+a.name);touch();
-  reply(true,null,{balance:a.coins,left:LIM.giftDay-a.gift.n});
+  reply(true,null,{balance:a.coins,left:LIM.giftDay-a.gift.n});walletPush(c,a);
   const oc=online.get(to.key);if(oc)oc.send({t:'gift.in',from:a.name,amount:amt,balance:to.coins});
 }
 
@@ -487,6 +611,7 @@ function reportMsg(c,m){
   if(db.reports.length>500)db.reports.splice(0,db.reports.length-500);touch();
   const people=new Set(db.reports.filter(r=>r.tk===tk&&r.open&&now-r.ts<3600e3).map(r=>r.by));
   if(people.size>=3&&!(tAcct&&tAcct.key===OWNER_KEY)){const until=now+15*60000;if(tAcct)tAcct.muted=Math.max(tAcct.muted||0,until);if(tc)tc.muteUntil=until;touch();console.log('[auto-mute] '+tn+' after '+people.size+' reports')}
+  if(reason==='cheating'&&tc)acReport(tc,'reported for cheating','by '+(c.acct?c.acct.name:'a guest')+(m.note?': '+clean(m.note,80):''));
   reply(true);
 }
 
@@ -600,7 +725,7 @@ function adminMsg(c,m){
       lvl,staff:Object.values(db.accounts).filter(a=>a.admin).map(a=>a.name),
       players:[...conns.values()].map(x=>({id:x.id,name:x.p?x.p.name:(x.acct?x.acct.name:'(browsing)'),acct:x.acct?x.acct.name:'',staff:staffOf(x.acct),room:x.room&&rooms.get(x.room)?rooms.get(x.room).name:'',ip:lvl>=2?x.ip:''})).slice(0,200)}});
     case'admin.lookup':{const a=acct();if(!a)return no('No account with that name.');const now=Date.now();
-      return ok({u:{name:a.name,coins:a.coins,xp:a.xp,created:a.created,online:!!online.get(a.key),email:lvl>=2&&a.email?maskEmail(a.email):'',admin:!!a.admin,verified:!!a.emailVerified,ban:a.ban>now?a.ban:0,muted:a.muted>now?a.muted:0,friends:Object.keys(a.friends||{}).length,owned:(a.owned||[]).length,ledger:(a.ledger||[]).slice(-5),owner:!notOwner(a)}})}
+      return ok({u:{name:a.name,coins:a.coins,xp:a.xp,created:a.created,online:!!online.get(a.key),email:lvl>=2&&a.email?maskEmail(a.email):'',admin:!!a.admin,verified:!!a.emailVerified,ban:a.ban>now?a.ban:0,perm:a.ban>=PERM,banCat:a.ban>now?a.banCat||'':'',banReason:a.ban>now?a.banReason||'':'',muted:a.muted>now?a.muted:0,friends:Object.keys(a.friends||{}).length,owned:(a.owned||[]).length,ledger:(a.ledger||[]).slice(-5),owner:!notOwner(a)}})}
     case'admin.coins':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');const amt=Math.floor(+m.amount);
       if(!Number.isFinite(amt)||Math.abs(amt)>1e9)return no('Use a whole number up to 1,000,000,000.');
       const n=m.mode==='set'?amt:a.coins+amt;a.coins=Math.max(0,Math.min(1e9,n));a.lastSync=Date.now();
@@ -608,14 +733,32 @@ function adminMsg(c,m){
       pushTo(a,{t:'acct.push',coins:a.coins});return ok({coins:a.coins})}
     case'admin.unlockall':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');a.owned=cosList([...(a.owned||[]),...(Array.isArray(m.ids)?m.ids:[])]);audit('unlock cosmetics',a.name,a.owned.length+' items');touch();pushTo(a,{t:'acct.push',owned:a.owned});return ok({owned:a.owned.length})}
     case'admin.ban':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
-      const h=+m.hours;if(!(h>=0)||h>87600)return no('Hours must be between 0 (lifts a ban) and 87600.');
-      applyBan(a,h>0?Date.now()+h*3600e3:0);audit(h>0?'ban':'unban',a.name,h>0?h+'h '+clean(m.reason,80):'');touch();return ok({})}
+      const perm=!!m.perm,h=+m.hours;if(!perm&&(!(h>=0)||h>87600))return no('Hours must be between 0 (lifts a ban) and 87600.');
+      const on=perm||h>0;applyBan(a,perm?PERM:h>0?Date.now()+h*3600e3:0,m.cat,on?(clean(m.reason,300)||BAN_DEFAULT):null);
+      if(on&&m.ac){const f=db.ac.find(x=>x.id===m.ac);if(f){f.open=false;f.action='banned';f.by=c.acct.name}}
+      if(on&&m.rep){const r=db.reports.find(x=>x.id===m.rep);if(r){r.open=false;r.action='ban';r.by=c.acct.name}}
+      audit(on?'ban':'unban',a.name,on?(perm?'permanent':h+'h')+' · '+a.banCat+' · '+clean(m.reason,80):'');touch();return ok({})}
+    case'admin.appeals':{const now=Date.now();const list=Object.values(db.accounts).filter(a=>a.appeal&&(m.all?now-a.appeal.at<30*864e5:a.appeal.status==='open')).sort((x,y)=>y.appeal.at-x.appeal.at).slice(0,100)
+        .map(a=>({name:a.name,ban:a.ban>now?a.ban:0,perm:a.ban>=PERM,cat:a.banCat||'',reason:a.banReason||'',appeal:a.appeal}));return ok({list,cats:BAN_CATS,def:BAN_DEFAULT})}
+    case'admin.appeal':{const a=acct();if(!a||!a.appeal)return no('No appeal from that player.');if(guard(a))return;const act=m.act;
+      a.appeal.by=c.acct.name;a.appeal.done=Date.now();
+      if(act==='lift'){a.appeal.status='lifted';a.appeal.reply=clean(m.reply,300);applyBan(a,0);audit('appeal: lifted ban',a.name,'');touch();return ok({})}
+      if(act==='keep'){a.appeal.status='kept';a.appeal.reply=clean(m.reply,300);applyBan(a,a.ban,BAN_CATS.includes(m.cat)?m.cat:a.banCat,m.reason!=null&&String(m.reason).trim()?m.reason:a.banReason);
+        audit('appeal: kept ban',a.name,a.banCat+' · '+String(a.banReason).slice(0,60));touch();return ok({})}
+      return no('Pick lift or keep.')}
+    case'admin.ac':return ok({list:db.ac.filter(f=>m.all||f.open).slice(-100).reverse()});
+    case'admin.acclip':{const f=db.ac.find(x=>x.id===m.id);if(!f||!f.clip)return no('There is no recording for this one.');const tk=crypto.randomBytes(16).toString('hex');
+      clipTickets.set(tk,{file:f.clip,exp:Date.now()+15*60e3});for(const [k,v] of clipTickets)if(v.exp<Date.now())clipTickets.delete(k);return ok({path:'/clip/'+tk})}
+    case'admin.acdismiss':{const f=db.ac.find(x=>x.id===m.id);if(!f)return no('Not found.');f.open=false;f.action='looks fine';f.by=c.acct.name;
+      if(f.clip){fs.unlink(path.join(CLIPS,f.clip),()=>{});clipMem.delete(f.clip);f.clip=null}audit('anti-cheat: dismissed',f.name,f.why);touch();return ok({})}
+    case'admin.acrecord':{const t=conns.get(String(m.id||''));if(!t)return no('That player left.');const f=acReport(t,'staff request','asked by '+c.acct.name,true);return ok({id:f&&f.id})}
     case'admin.mute':{const a=acct();if(!a)return no('No account with that name.');if(guard(a))return;
       const mi=+m.minutes;if(!(mi>=0)||mi>525600)return no('Minutes must be between 0 (unmute) and 525600.');
       a.muted=mi>0?Date.now()+mi*60000:0;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted;audit(mi>0?'mute':'unmute',a.name,mi>0?mi+' min':'');touch();return ok({})}
     case'admin.fx':{const f=cleanFx(m.fx);if(!f)return no('Unknown effect.');if(f.k==='jackpot'&&lvl<2)return no('Only the owner can set jackpots.');
       const names=new Set((Array.isArray(m.names)?m.names:[]).slice(0,60).map(x=>key(x))),list=m.scope==='list';let n=0;
-      for(const x of conns.values()){if(list){const a1=x.p?key(x.p.name):'',a2=x.acct?key(x.acct.name):'';if(!names.has(a1)&&!names.has(a2))continue}x.send({t:'user.fx',fx:{...f,by:c.acct.name}});n++}
+      for(const x of conns.values()){if(list){const a1=x.p?key(x.p.name):'',a2=x.acct?key(x.acct.name):'';if(!names.has(a1)&&!names.has(a2))continue}if(f.k==='jackpot'||f.k==='gold'){const until=f.v===false?0:Date.now()+(f.dur?f.dur*1000:6*36e5);if(f.k==='jackpot')x.jack=until;else x.gold=until}if(f.k==='clear'){x.jack=0;x.gold=0}if(['speed','fly','size','god'].includes(f.k))x.fxAt=Date.now();
+        x.send({t:'user.fx',fx:{...f,by:c.acct.name}});n++}
       audit('effect',list?'whitelist':'everyone',f.k+(f.v!==undefined?' '+f.v:''));return ok({n})}
     case'admin.poll':{if(poll)return no('A poll is already running.');const q=clean(m.q,90),a=clean(m.a,28),b=clean(m.b,28);if(!q||!a||!b)return no('Fill in the question and both options.');
       const secs=Math.floor(num(m.secs||30,10,180));
@@ -632,7 +775,7 @@ function adminMsg(c,m){
     case'admin.reports':return ok({reports:db.reports.filter(r=>m.all||r.open).slice(-100).reverse()});
     case'admin.resolve':{const r=db.reports.find(x=>x.id===m.id);if(!r)return no('That report is gone.');const a0=db.accounts[r.tk],a=a0&&notOwner(a0)&&!(lvl<2&&a0.admin)?a0:null;
       if(m.action==='mute'&&a){a.muted=Date.now()+60*60000;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted}
-      if(m.action==='ban'&&a){applyBan(a,Date.now()+24*3600e3)}
+      if(m.action==='ban'&&a){applyBan(a,Date.now()+24*3600e3,{cheating:'Cheating',harassment:'Harassment',name:'Inappropriate language',spam:'Spam'}[r.reason]||'Other',r.note||null)}
       r.open=false;r.action=String(m.action||'dismiss');audit('report '+r.action,r.target,r.reason);touch();return ok({})}
     case'admin.setadmin':{if(ownerOnly())return;const a=acct();if(!a)return no('No account with that name.');if(!notOwner(a))return no('The owner is already the owner.');
       a.admin=!!m.on;audit(a.admin?'make admin':'remove admin',a.name,'');touch();pushTo(a,{t:'user.update',user:userView(a)});return ok({admin:a.admin})}
@@ -655,6 +798,9 @@ async function handle(c,m){
   const t=m.t;
   if(t.startsWith('auth.'))return authMsg(c,m);
   if(t==='wallet.sync')return walletSync(c,m);
+  if(t.startsWith('econ.')||t.startsWith('casino.'))return econMsg(c,m);
+  if(t.startsWith('ac.'))return acMsg(c,m);
+  if(t==='ban.appeal')return appealMsg(c,m);
   if(t==='gift')return gift(c,m);
   if(t==='poll.vote'){if(poll&&Date.now()<poll.end&&(m.c==='a'||m.c==='b'))poll.votes.set(c.acct?'a:'+c.acct.key:'c:'+c.id,m.c);return}
   if(t.startsWith('admin.'))return adminMsg(c,m);
@@ -759,6 +905,7 @@ const secure=res=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHead
 const server=http.createServer((req,res)=>{
   secure(res);const u=new URL(req.url,'http://x'),p=u.pathname;
   if(p==='/healthz'){res.writeHead(200,{'Content-Type':'text/plain'});return res.end('ok')}
+  if(p.startsWith('/clip/'))return clipServe(res,p.slice(6).replace(/[^0-9a-f]/g,''));
   if(p.startsWith('/admin/')&&ADMIN){
     const tok=u.searchParams.get('token')||'',a=Buffer.from(tok),b=Buffer.from(ADMIN);
     if(a.length!==b.length||!crypto.timingSafeEqual(a,b)){res.writeHead(403);return res.end('no')}
