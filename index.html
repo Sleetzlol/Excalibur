@@ -570,6 +570,69 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
 .setprev{display:flex;align-items:center;gap:10px;background:#dfe3ea;color:#222;border-radius:10px 10px 0 0;padding:8px 12px;max-width:260px;font:13px system-ui,sans-serif}
 .setprev img{width:16px;height:16px}
 .setprev span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* group chats */
+.dmhb{display:flex;gap:6px;align-items:center}.dmhb .btn{min-height:30px;padding:3px 10px;font-size:13px}
+.gcmem{font-size:11px;color:var(--mute);padding:0 12px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gcsys{align-self:center;font-size:12px;color:var(--mute);padding:2px 8px}
+.gcfrom{font-size:11px;font-weight:700;color:var(--gold);cursor:pointer;margin-bottom:2px}
+.gcpick{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px;margin:6px 0}
+.gcpr{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:8px;cursor:pointer}.gcpr:hover{background:var(--panel2)}
+/* incoming call banner */
+.callring{position:fixed;z-index:9600;top:calc(env(safe-area-inset-top) + 12px);left:50%;transform:translateX(-50%);width:min(420px,calc(100% - 24px));display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:rgba(20,24,40,.96);border:1px solid rgba(255,255,255,.14);border-radius:22px;box-shadow:0 18px 50px rgba(0,0,0,.55);animation:ringin .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes ringin{from{transform:translate(-50%,-40px);opacity:0}}
+.callring .crav{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font:800 20px var(--head);color:#fff;flex:none}
+.callring .crtx{flex:1;min-width:0}.callring b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.callring span{font-size:13px;color:var(--mute)}
+.callring button{width:48px;height:48px;border-radius:50%;font-size:20px;color:#fff;flex:none}
+.callring .crno{background:#e5484d}.callring .cryes{background:#30a46c;animation:ringp 1.2s infinite}
+@keyframes ringp{50%{box-shadow:0 0 0 8px rgba(48,164,108,.25)}}
+/* the call screen */
+.callui{position:fixed;inset:0;z-index:9400;display:grid;grid-template-rows:auto 1fr auto auto;background:radial-gradient(ellipse at top,#1b2450,#070a18 70%);color:#fff;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.callui .chd{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.callui .cmin{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;font-size:22px;line-height:1}
+.callui .cti{flex:1;min-width:0}.callui .cti b{display:block;font:800 18px var(--head);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.callui .cti span{font-size:13px;color:#9fb0dd;font-variant-numeric:tabular-nums}
+.callui .cct{font-size:12px;color:#9fb0dd;text-align:right;max-width:40%}
+.callui .cstage{min-height:0;display:flex;flex-direction:column;gap:10px;padding:0 14px;overflow:hidden}
+.callui .cvid{position:relative;flex:1;min-height:0;background:#000;border-radius:16px;overflow:hidden;outline:none}
+.callui .cvid video{width:100%;height:100%;object-fit:contain;display:block}
+.callui .cvid.ctl{box-shadow:0 0 0 3px #f2b84b inset;cursor:crosshair}
+.callui .cvlab{position:absolute;left:10px;top:10px;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:999px;font-size:12px}
+.callui .cswitch{display:flex;gap:6px;flex-wrap:wrap}
+.callui .ctiles{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-content:center;flex:1}
+.callui .ctiles.strip{flex:none;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;gap:10px}
+.callui .ctile{width:132px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:18px;background:rgba(255,255,255,.06);flex:none}
+.callui .strip .ctile{width:96px;padding:8px 6px}
+.callui .cav,.callmini .cav{border-radius:50%;display:grid;place-items:center;font:800 30px var(--head);color:#fff;transition:box-shadow .12s}
+.callui .ctile .cav{width:76px;height:76px}.callui .strip .ctile .cav{width:48px;height:48px;font-size:20px}
+.callui .ctile.talk .cav,.callmini .cav.talk{box-shadow:0 0 0 4px #4be37a,0 0 22px rgba(75,227,122,.5)}
+.callui .cname{font-size:13px;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.callui .cside{padding:8px 14px 0}
+.callui .cctl{display:flex;flex-direction:column;gap:6px;background:rgba(242,184,75,.08);border:1px solid rgba(242,184,75,.3);border-radius:14px;padding:10px 12px;font-size:14px}
+.callui .cctlr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.callui .cctlr span{flex:1;min-width:160px}
+.callui .cbar{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:14px}
+.callui .cbtn{display:flex;flex-direction:column;align-items:center;gap:5px;background:none;color:#cfd8f5;font-size:11px;min-width:64px}
+.callui .cbtn i{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-style:normal;background:rgba(255,255,255,.12)}
+.callui .cbtn.on i{background:#fff;color:#111}.callui .cbtn.end i{background:#e5484d;transform:rotate(135deg)}
+@media (max-width:640px){.callui .cbtn{min-width:52px}.callui .cbtn i{width:48px;height:48px;font-size:19px}.callui .ctile{width:104px}.callui .ctile .cav{width:60px;height:60px}}
+/* the small floating call window */
+.callmini{position:fixed;left:0;top:0;z-index:9300;width:120px;height:160px;border-radius:22px;background:linear-gradient(160deg,#27305e,#0e1228);box-shadow:0 14px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;touch-action:none;cursor:grab;user-select:none;overflow:hidden;color:#fff}
+.callmini.vid{width:200px;height:124px;background:#000}
+.callmini video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.callmini .cav{width:62px;height:62px;font-size:26px}
+.callmini .mnm{font-size:12px;font-weight:700;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.callmini .mtime{font-size:11px;color:#4be37a;font-variant-numeric:tabular-nums}
+.callmini.vid .mtime{position:absolute;right:8px;bottom:6px;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:8px}
+.callmini .mlab{position:absolute;left:8px;bottom:6px;font-size:11px;background:rgba(0,0,0,.55);padding:1px 6px;border-radius:8px;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.callmini .mmute{position:absolute;top:6px;right:8px;font-size:13px}
+.callmini .mtab{display:none}
+.callmini.tuck{cursor:pointer}.callmini.tuck>*:not(.mtab){visibility:hidden}
+.callmini.tuck .mtab{display:grid;place-items:center;position:absolute;top:0;bottom:0;width:22px;left:0;background:#30a46c;font-size:12px}
+.callmini.tuck.tl .mtab{left:auto;right:0}
+/* someone else's pointer while they control your game */
+.rcur{position:fixed;left:0;top:0;z-index:9700;pointer-events:none;width:14px;height:14px;margin:-2px 0 0 -2px;border-left:3px solid #f2b84b;border-top:3px solid #f2b84b;transform-origin:0 0}
+.rcur span{position:absolute;left:12px;top:10px;background:#f2b84b;color:#201500;font:700 11px var(--body);padding:1px 6px;border-radius:6px;white-space:nowrap}
 /* ban page: a banned account can sign in, but sees only this */
 .banpage{position:fixed;inset:0;z-index:9000;background:radial-gradient(ellipse at top,#2a1220,#0b0d16 70%);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 .banpage .bcard{width:100%;max-width:520px;background:#141827;border:1px solid #3a2232;border-radius:18px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
@@ -629,16 +692,16 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
    Built-in game:  {id:'x', name:'X', cat:'Casino', desc:'...', builtin:'flip'}
    Not ready yet:  add soon:true                                              */
 const GAMES=[
-  {id:'lobby',name:'Game Lobby',cat:'Official',desc:'A festive floating island. Walk around and pick a mode.',long:'A festive floating island in the sky. Walk around as your player, grab gems and presents for coins, buy cosmetics, set up trades, and head through the doors to each game mode. Use the party ring to team up with friends.',how:['Move with WASD or the arrow keys, or click where you want to go.','Walk over gems and chests to earn coins.','Stand near a door or the party pad and press E.'],builtin:'lobby',hue:215,ico:'🧭'},
-  {id:'tournament',name:'Tournament',cat:'Official',desc:'Eight players, one bracket. Win your gun duel in a huge coliseum to advance.',builtin:'tour',hue:30,ico:'🏆',long:'A knockout bracket of eight (empty spots are filled with bots). Each round two fighters meet in a huge sandy coliseum full of pillars and cover. Everyone starts with a pistol; guns, ammo, health and shields lie all over the map, so the first job is to loot. A shrinking storm forces the fight. Win your duel to move on, and watch the other matches while you wait.',how:['WASD to move, mouse to aim, hold the mouse button to shoot.','R reloads. E picks up a gun or opens a chest. 1-3 or the mouse wheel switch guns.','Ammo, health and shields are picked up by walking over them.','Pillars and walls stop bullets. Use them for cover.','When it is not your match you spectate. Click or press Tab to switch fighter.']},
-  {id:'ctf',name:'Capture the Flag',cat:'Official',desc:'Red vs Blue on a floating island. Steal their flag, defend yours.',builtin:'ctf',hue:210,ico:'🚩',long:'Two teams on a floating island, each with a base and a flag. Grab the enemy flag and carry it back to your own base while your flag is safe at home. First team to three captures wins. You respawn after a few seconds with a pistol, and guns, ammo and health are scattered around the island.',how:['WASD to move, mouse to aim, hold the mouse button to shoot.','Walk onto the enemy flag to pick it up. Touch your own dropped flag to return it.','Carry the flag to your base to score. Teammates can protect you.','R reloads. E picks up a gun. 1-3 or the mouse wheel switch guns.']},
-  {id:'royale',name:'Battle Royale',cat:'Official',desc:'Drop from the bus, loot chests, outlast everyone.',builtin:'br',hue:280,ico:'🪂',long:'Twenty fighters ride a bus over a massive island. Jump out wherever you like, land, open chests for guns and ammo, and stay inside the shrinking storm. The last one standing wins.',how:['Press SPACE or click to jump from the bus, then glide toward your mouse pointer.','Run to a town and press E at a chest to open it, and E to take a gun.','The purple storm hurts and keeps closing. Stay inside the white circle.','WASD to move, mouse to aim and shoot, R to reload, 1-4 to switch guns.']},
-  {id:'survival',name:'Wave Survival',cat:'Official',desc:'Team up and hold out against waves of zombies. Spend points on better guns and turrets.',builtin:'surv',hue:120,ico:'🧟',long:'Up to four survivors face fifteen waves of zombies: walkers, fast runners, heavy tanks, acid spitters and a boss every fifth wave. Kill zombies for points. Between waves the shop opens: refill ammo, heal, buy better guns and build turrets. If you fall, you come back at the start of the next wave. If the whole team falls at once, it is over.',how:['WASD to move, mouse to aim and shoot, R to reload.','Kill zombies to earn points. Between waves press Z (ammo), X (heal), C (next gun), V (turret).','Dead players return when the next wave begins.','Survive all 15 waves to win.']},
-  {id:'gungame',name:'Gun Game',cat:'Official',desc:'Every kill gives you a better gun. First to finish the ladder wins.',builtin:'gun',hue:20,ico:'🔫',long:'Everyone respawns instantly and starts with a pistol. Each kill upgrades you to the next gun on an eight-step ladder, ending with the Golden Gun. The first player to get a kill with the Golden Gun wins; when time runs out the leader wins. Ammo is unlimited.',how:['WASD to move, mouse to aim and shoot.','Every kill moves you up a gun.','Health and shields lie around the map.','First to the Golden Gun kill wins.']},
-  {id:'world',name:'Survival World',cat:'Official',desc:'Mine, build, farm, sail, and travel through portals to the Nether and the End. Survival, creative or hardcore.',builtin:'world',hue:140,ico:'🌍',long:'A big open world with three dimensions. Chop trees, mine ores, craft tools and armor, farm, fish, trade with villagers and build a base. Hearts and hunger keep you honest, and at night zombies, skeletons, spiders, creepers and endermen come out, so sleep in a bed! Explore villages, dungeons, shipwrecks and ruined portals, sail boats, light a Nether portal, hunt for the stronghold and defeat the Ender Dragon. Play Survival or Creative on Easy, Normal, Hard or one-life Hardcore, alone, with friends, or on a server.'},
-  {id:'hideseek',name:'Hide and Seek',cat:'Official',desc:'Hiders disguise as props. Seekers shoot suspicious crates.',builtin:'hide',hue:300,ico:'📦',long:'Hiders turn into crates, barrels, bushes, rocks, bins and hay bales and hide among a hundred fake props. Seekers are released after a short countdown and have a pistol with limited ammo. Shoot a hider and they are revealed and become a seeker. Hiders win if time runs out.',how:['Hiders: press Q to change disguise, then stand still among the props. Moving makes you wobble.','Seekers: shoot props that look wrong. Ammo is limited, so pick up more.','Found hiders become seekers.','Hiders win if any are left when time runs out.']},
-  {id:'parkour',name:'Parkour',cat:'Official',desc:'Race a side-view course that gets harder every round. Last one to finish is out. Or go Hardcore: outrun a wall of fire.',builtin:'parkour',hue:200,ico:'🧗',long:'Eight runners race the same randomly generated side-view course. Every round adds harder jumps and new blocks: ice, lava, bounce pads, crumbling stones, moving ferries, blinking platforms and conveyor belts. You can fall as many times as you like and respawn at your last checkpoint, but the last runner to reach the finish each round is eliminated. The last runner standing wins. Bots have blue names.',how:['A / D or the arrow keys to run, W, the up arrow or Space to jump. On a phone use the joystick and the jump button.','Touch a checkpoint flag to respawn there. You can respawn as often as you need.','Finish before the last runner. The slowest runner is eliminated every round.','Eliminated? Spectate and press Q / E to switch who you follow.']},
-  {id:'casino',name:'Casino',cat:'Official',desc:'Blackjack, poker, roulette and slots. Play coins only.',builtin:'casino',hue:45,ico:'🎰',long:'The casino is a floor you walk around, with Blackjack, Texas Hold\'em against three bots, Roulette and Slots. Everything uses play coins that have no cash value and can never be bought or cashed out.',how:['Walk up to a table or machine and press E (or tap USE).','Blackjack: hit, stand or double. Blackjack pays 3 to 2.','Hold\'em: you sit down with 200 coins against three bots. Cash out any time to bring your chips back.','Roulette and Slots: tap chips, then spin.']},
+  {id:'lobby',name:'Game Lobby',cat:'Original',desc:'A festive floating island. Walk around and pick a mode.',long:'A festive floating island in the sky. Walk around as your player, grab gems and presents for coins, buy cosmetics, set up trades, and head through the doors to each game mode. Use the party ring to team up with friends.',how:['Move with WASD or the arrow keys, or click where you want to go.','Walk over gems and chests to earn coins.','Stand near a door or the party pad and press E.'],builtin:'lobby',hue:215,ico:'🧭'},
+  {id:'tournament',name:'Tournament',cat:'Original',desc:'Eight players, one bracket. Win your gun duel in a huge coliseum to advance.',builtin:'tour',hue:30,ico:'🏆',long:'A knockout bracket of eight (empty spots are filled with bots). Each round two fighters meet in a huge sandy coliseum full of pillars and cover. Everyone starts with a pistol; guns, ammo, health and shields lie all over the map, so the first job is to loot. A shrinking storm forces the fight. Win your duel to move on, and watch the other matches while you wait.',how:['WASD to move, mouse to aim, hold the mouse button to shoot.','R reloads. E picks up a gun or opens a chest. 1-3 or the mouse wheel switch guns.','Ammo, health and shields are picked up by walking over them.','Pillars and walls stop bullets. Use them for cover.','When it is not your match you spectate. Click or press Tab to switch fighter.']},
+  {id:'ctf',name:'Capture the Flag',cat:'Original',desc:'Red vs Blue on a floating island. Steal their flag, defend yours.',builtin:'ctf',hue:210,ico:'🚩',long:'Two teams on a floating island, each with a base and a flag. Grab the enemy flag and carry it back to your own base while your flag is safe at home. First team to three captures wins. You respawn after a few seconds with a pistol, and guns, ammo and health are scattered around the island.',how:['WASD to move, mouse to aim, hold the mouse button to shoot.','Walk onto the enemy flag to pick it up. Touch your own dropped flag to return it.','Carry the flag to your base to score. Teammates can protect you.','R reloads. E picks up a gun. 1-3 or the mouse wheel switch guns.']},
+  {id:'royale',name:'Battle Royale',cat:'Original',desc:'Drop from the bus, loot chests, outlast everyone.',builtin:'br',hue:280,ico:'🪂',long:'Twenty fighters ride a bus over a massive island. Jump out wherever you like, land, open chests for guns and ammo, and stay inside the shrinking storm. The last one standing wins.',how:['Press SPACE or click to jump from the bus, then glide toward your mouse pointer.','Run to a town and press E at a chest to open it, and E to take a gun.','The purple storm hurts and keeps closing. Stay inside the white circle.','WASD to move, mouse to aim and shoot, R to reload, 1-4 to switch guns.']},
+  {id:'survival',name:'Wave Survival',cat:'Original',desc:'Team up and hold out against waves of zombies. Spend points on better guns and turrets.',builtin:'surv',hue:120,ico:'🧟',long:'Up to four survivors face fifteen waves of zombies: walkers, fast runners, heavy tanks, acid spitters and a boss every fifth wave. Kill zombies for points. Between waves the shop opens: refill ammo, heal, buy better guns and build turrets. If you fall, you come back at the start of the next wave. If the whole team falls at once, it is over.',how:['WASD to move, mouse to aim and shoot, R to reload.','Kill zombies to earn points. Between waves press Z (ammo), X (heal), C (next gun), V (turret).','Dead players return when the next wave begins.','Survive all 15 waves to win.']},
+  {id:'gungame',name:'Gun Game',cat:'Original',desc:'Every kill gives you a better gun. First to finish the ladder wins.',builtin:'gun',hue:20,ico:'🔫',long:'Everyone respawns instantly and starts with a pistol. Each kill upgrades you to the next gun on an eight-step ladder, ending with the Golden Gun. The first player to get a kill with the Golden Gun wins; when time runs out the leader wins. Ammo is unlimited.',how:['WASD to move, mouse to aim and shoot.','Every kill moves you up a gun.','Health and shields lie around the map.','First to the Golden Gun kill wins.']},
+  {id:'world',name:'Survival World',cat:'Original',desc:'Mine, build, farm, sail, and travel through portals to the Nether and the End. Survival, creative or hardcore.',builtin:'world',hue:140,ico:'🌍',long:'A big open world with three dimensions. Chop trees, mine ores, craft tools and armor, farm, fish, trade with villagers and build a base. Hearts and hunger keep you honest, and at night zombies, skeletons, spiders, creepers and endermen come out, so sleep in a bed! Explore villages, dungeons, shipwrecks and ruined portals, sail boats, light a Nether portal, hunt for the stronghold and defeat the Ender Dragon. Play Survival or Creative on Easy, Normal, Hard or one-life Hardcore, alone, with friends, or on a server.'},
+  {id:'hideseek',name:'Hide and Seek',cat:'Original',desc:'Hiders disguise as props. Seekers shoot suspicious crates.',builtin:'hide',hue:300,ico:'📦',long:'Hiders turn into crates, barrels, bushes, rocks, bins and hay bales and hide among a hundred fake props. Seekers are released after a short countdown and have a pistol with limited ammo. Shoot a hider and they are revealed and become a seeker. Hiders win if time runs out.',how:['Hiders: press Q to change disguise, then stand still among the props. Moving makes you wobble.','Seekers: shoot props that look wrong. Ammo is limited, so pick up more.','Found hiders become seekers.','Hiders win if any are left when time runs out.']},
+  {id:'parkour',name:'Parkour',cat:'Original',desc:'Race a side-view course that gets harder every round. Last one to finish is out. Or go Hardcore: outrun a wall of fire.',builtin:'parkour',hue:200,ico:'🧗',long:'Eight runners race the same randomly generated side-view course. Every round adds harder jumps and new blocks: ice, lava, bounce pads, crumbling stones, moving ferries, blinking platforms and conveyor belts. You can fall as many times as you like and respawn at your last checkpoint, but the last runner to reach the finish each round is eliminated. The last runner standing wins. Bots have blue names.',how:['A / D or the arrow keys to run, W, the up arrow or Space to jump. On a phone use the joystick and the jump button.','Touch a checkpoint flag to respawn there. You can respawn as often as you need.','Finish before the last runner. The slowest runner is eliminated every round.','Eliminated? Spectate and press Q / E to switch who you follow.']},
+  {id:'casino',name:'Casino',cat:'Original',desc:'Blackjack, poker, roulette and slots. Play coins only.',builtin:'casino',hue:45,ico:'🎰',long:'The casino is a floor you walk around, with Blackjack, Texas Hold\'em against three bots, Roulette and Slots. Everything uses play coins that have no cash value and can never be bought or cashed out.',how:['Walk up to a table or machine and press E (or tap USE).','Blackjack: hit, stand or double. Blackjack pays 3 to 2.','Hold\'em: you sit down with 200 coins against three bots. Cash out any time to bring your chips back.','Roulette and Slots: tap chips, then spin.']},
 ];
 
 /* ---------- Safe storage ---------- */
@@ -774,7 +837,7 @@ function touchUI(wrap,cfg){
     const st=el('div','tstick','<i></i>'),nub=st.firstChild;ui.append(st);let id=null;
     const upd=e=>{const r=st.getBoundingClientRect(),R=r.width/2;let dx=e.clientX-(r.left+R),dy=e.clientY-(r.top+R);const m=Math.hypot(dx,dy);if(m>R){dx*=R/m;dy*=R/m}
       nub.style.transform=`translate(${dx}px,${dy}px)`;const th=R*.28;key('d',dx>th);key('a',dx<-th);if(!cfg.noY){key('s',dy>th);key('w',dy<-th)}};
-    st.addEventListener('pointerdown',e=>{id=e.pointerId;st.setPointerCapture(id);upd(e);e.preventDefault()});
+    st.addEventListener('pointerdown',e=>{id=e.pointerId;try{st.setPointerCapture(id)}catch(_){}upd(e);e.preventDefault()});
     st.addEventListener('pointermove',e=>{if(e.pointerId===id)upd(e)});
     const end=e=>{if(e.pointerId!==id)return;id=null;nub.style.transform='';['a','d','w','s'].forEach(k=>key(k,false))};
     st.addEventListener('pointerup',end);st.addEventListener('pointercancel',end);
@@ -854,7 +917,7 @@ function lockerOpen(){document.querySelectorAll('.lockm').forEach(x=>x.remove())
   const stop=renderLocker(root);const close=()=>{stop();m.remove();if(view==='games')render()};x.onclick=close;m.onclick=e=>{if(e.target===m)close()}}
 function renderGames(v){
   const q=$('#q').value.trim().toLowerCase();
-  if(!q&&(cat==='All'||cat==='Official'))v.append(dashboard());
+  if(!q&&(cat==='All'||cat==='Original'))v.append(dashboard());
   v.append(el('h1','','Games'),el('p','sub',QUIPS[Math.floor(Math.random()*QUIPS.length)]));
   const all=[...new Set(GAMES.map(g=>g.cat))],cats=all.length>1?['All',...all]:all;
   const chips=el('div','chips');
@@ -5531,7 +5594,7 @@ const NET=(()=>{
     sock.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
       if(m.t==='welcome'){id=m.id;if(Array.isArray(m.ice)&&m.ice.length)ice=m.ice;online=true;connecting=false;retry=0;ACC.config(m);readyRes();for(const s of sessions)s.rejoin();ACC.onWelcome();return}
       if(typeof m.t==='string'&&m.t.indexOf('world.')===0){try{WNET.msg(m)}catch(err){console.error('world message',err)}return}
-      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm|econ|appeal|ac)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
+      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm|econ|appeal|ac|gc|call)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
       receive(m)};
     sock.onclose=()=>{clearTimeout(to);const was=online;online=false;connecting=false;if(ws===sock)ws=null;readyRes();if(was){for(const s of sessions)s.connLost();ACC.onClose()}
       clearTimeout(rtimer);rtimer=setTimeout(connect,Math.min(30000,2000*(++retry)))};
@@ -6580,7 +6643,7 @@ const INTEG=(()=>{
 const ACC=(()=>{
   let n=0,dt=0;const reqs=new Map(),subs=new Set();
   const blocked=new Map(store.get('blocked',[]).map(n=>[String(n).toLowerCase(),String(n)]));   /* lowercase name -> name as typed */
-  const A={dms:[],conv:{},name:null,info:null,friends:[],ledger:[],chans:['general','lfg','casino'],ch:{},limits:{giftMax:5000,giftDay:5000},token:store.get('token',''),guest:user,cur:null};
+  const A={gcs:[],gconv:{},dms:[],conv:{},name:null,info:null,friends:[],ledger:[],chans:['general','lfg','casino'],ch:{},limits:{giftMax:5000,giftDay:5000},token:store.get('token',''),guest:user,cur:null};
   const fire=w=>subs.forEach(f=>{try{f(w)}catch(e){}});
   const chan=c=>A.ch[c]||(A.ch[c]={msgs:[],n:0});
   A.on=f=>{subs.add(f);return()=>subs.delete(f)};
@@ -6591,7 +6654,7 @@ const ACC=(()=>{
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));if(ECON.srv)ECON.srv.coins=coins;shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
   function applyWallet(u){ECON.enter(u);quiet(+u.coins||0);xp=+u.xp||0;store.set('xp',xp);drawLv();owned=Array.isArray(u.owned)&&u.owned.length?u.owned.slice():DEFAULT_COS.slice();eq={...eq,...(u.eq||{})};store.set('owned',owned);store.set('eq',eq)}
-  const signed=(v)=>{signedIn=v;if(!v){if(WMEM.acct)ECON.leave();banSet(0);banPage(null);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
+  const signed=(v)=>{signedIn=v;if(!v){try{if(CALL.id)CALL.leave(true);gcClose()}catch(e){}A.gcs=[];A.gconv={};if(WMEM.acct)ECON.leave();banSet(0);banPage(null);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
   A.onClose=()=>fire('conn');
@@ -6612,6 +6675,13 @@ const ACC=(()=>{
     case'kicked':toast(m.reason);signed(false);break;
     case'friends':A.friends=m.list;fire('friends');dmBadge();break;
     case'dm.list':A.dms=m.list||[];fire('dm');break;
+    case'gc.list':A.gcs=m.list||[];fire('gc');dmBadge();break;
+    case'gc.history':A.gconv[m.id]=m.msgs||[];fire('gc');break;
+    case'gc.msg':{(A.gconv[m.id]=A.gconv[m.id]||[]).push(m.m);if(A.gconv[m.id].length>100)A.gconv[m.id].shift();fire('gc');
+      if(m.m.f&&m.m.f!==A.name&&GCUI.open!==m.id){const g=A.gcs.find(x=>x.id===m.id);toast('👥 '+(g?g.name:'Group')+' · '+m.m.f+': '+(m.m.k==='party'?'party invite':m.m.t));AUD.sfx('coin')}
+      if(GCUI.open===m.id)NET.sendRaw({t:'gc.read',id:m.id});break}
+    case'gc.res':done(m,m);break;
+    case'call.ring':case'call.ringend':case'call.state':case'call.joined':case'call.left':case'call.declined':case'call.signal':case'call.end':case'call.status':CALL.msg(m);break;
     case'dm.history':A.conv[String(m.with).toLowerCase()]=m.msgs||[];fire('dm');break;
     case'dm.msg':{const k=String(m.with).toLowerCase();(A.conv[k]=A.conv[k]||[]).push(m.m);if(A.conv[k].length>80)A.conv[k].shift();fire('dm');
       if(m.m.f!==A.name&&DMUI.open!==k){toast('💬 '+m.m.f+': '+(m.m.k==='party'?'invited you to their party':m.m.t));AUD.sfx('coin')}if(DMUI.open===k)NET.sendRaw({t:'dm.read',with:m.with});break}
@@ -6636,6 +6706,7 @@ const ACC=(()=>{
   ACCHOOK.dirty=()=>{if(!A.name)return;clearTimeout(dt);dt=setTimeout(A.syncNow,1500)};
   A.gift=async(to,amount)=>{const r=await A.req({t:'gift',to,amount});if(r.ok){setCoins(r.balance,true);A.ledger.push({t:Date.now(),text:'Gifted '+amount+' coins to '+to});fire('wallet')}return r};
   A.friend=(act,name)=>A.req({t:'friend.'+act,name});
+  A.fireCall=()=>fire('call');
   A.say=(ch,text)=>NET.sendRaw({t:'g.say',ch,text});
   A.join=ch=>NET.sendRaw({t:'g.join',ch});
   A.channel=chan;
@@ -7258,25 +7329,36 @@ function renderFriends(v){
       if(f.online&&f.party)bs.push(btn('🎉 Join party','gold',()=>{NET.sendRaw({t:'party.joinfriend',name:f.name});toast('Joining '+f.name+'\'s party...')}));
       if(f.online&&f.room&&f.room.count<f.room.max&&f.room.kind!=='event')bs.push(btn('Join game','gold',()=>{NET.pending={friend:f.name};openGame(GAMES.find(g=>g.id===(f.room.kind==='casino'?'casino':f.room.kind==='world'?'world':'lobby')))}));
       const mb=btn('💬 Message'+(f.unread?' ('+f.unread+')':''),f.unread?'gold':'alt',()=>dmOpen(f.name));bs.push(mb);
+      {const ck='dm:'+f.name.toLowerCase(),act=CALL.activeFor(ck),mine=CALL.id&&CALL.chatKey===ck;if(f.online||act)bs.push(btn(mine?'📞 In call':act?'📞 Join':'📞 Call',act&&!mine?'gold':'alt',()=>act&&!mine?CALL.join(act.id,ck):CALL.start({dm:f.name})))}
       bs.push(btn('Gift','alt',()=>giftDialog(f.name)),btn('Remove','alt',()=>{if(confirm('Remove '+f.name+' from your friends?'))call('remove',f.name,'Friend removed')}));return row(f,bs)}));
     sec('Sent requests',by('out').map(f=>row(f,[btn('Cancel','alt',()=>call('remove',f.name,'Request cancelled'))])));
     if(!ACC.friends.length)p.append(el('p','note','No friends yet. Add someone above, or use People in the lobby to send a request.'));
     box.append(p);
+    /* group chats */
+    const gp=el('div','panel');gp.style.cssText='max-width:620px;margin-top:14px';const gh=el('div','row');gh.style.cssText='margin:0;justify-content:space-between;align-items:center';
+    gh.append(el('h2','','👥 Group chats'),btn('＋ New group chat','gold',gcNew));gp.append(gh);
+    if(!(ACC.gcs||[]).length)gp.append(el('p','note','Make a group chat with up to 11 friends. You can message, call the whole group and share your screen.'));
+    (ACC.gcs||[]).forEach(g=>{const d=el('div','frow'),gg=el('div','grow'),nm=el('b');nm.textContent=g.name+(g.unread?'  ('+g.unread+')':'');const sm=el('small');
+      const act=CALL.activeFor('gc:'+g.id);sm.textContent=(act?'📞 Call going on ('+act.n+')  ·  ':'')+g.members.length+' members'+(g.last?'  ·  '+(g.last.f?g.last.f+': ':'')+String(g.last.t).slice(0,40):'');gg.append(nm,sm);d.append(gg);
+      d.append(btn(act&&!(CALL.id&&CALL.chatKey==='gc:'+g.id)?'📞 Join':'📞 Call',act?'gold':'alt',()=>act&&!(CALL.id&&CALL.chatKey==='gc:'+g.id)?CALL.join(act.id,'gc:'+g.id):CALL.start({gc:g.id})),btn('💬 Open',g.unread?'gold':'alt',()=>gcOpen(g.id)));gp.append(d)});
+    box.append(gp);
   };
-  draw();const off=ACC.on(w=>{if(w==='friends'||w==='auth'||w==='conn')draw()});stopLoop=off;
+  draw();const off=ACC.on(w=>{if(w==='friends'||w==='auth'||w==='conn'||w==='gc'||w==='call')draw()});stopLoop=off;
 }
 /* ---------- Direct messages: a chat drawer with one friend ---------- */
 const DMUI={open:null,el:null,off:null};
-function dmBadge(){const n=(ACC.friends||[]).reduce((a,f)=>a+(f.unread||0),0),b=document.querySelector('nav button[data-v=friends]');if(!b)return;let s=b.querySelector('.nbadge');if(!n){if(s)s.remove();return}if(!s){s=el('span','nbadge');b.append(s)}s.textContent=n>9?'9+':String(n)}
+function dmBadge(){const n=(ACC.friends||[]).reduce((a,f)=>a+(f.unread||0),0)+gcBadgeN(),b=document.querySelector('nav button[data-v=friends]');if(!b)return;let s=b.querySelector('.nbadge');if(!n){if(s)s.remove();return}if(!s){s=el('span','nbadge');b.append(s)}s.textContent=n>9?'9+':String(n)}
 function dmOpen(name){
   dmClose();if(!ACC.name)return toast('Sign in to send messages');
   const k=String(name).toLowerCase();DMUI.open=k;
-  const d=el('div','dmbox');d.innerHTML=`<div class="dmhead"><b></b><button class="dmx" aria-label="Close">✕</button></div><div class="dmlog selectable"></div>
+  gcClose();const d=el('div','dmbox');d.innerHTML=`<div class="dmhead"><b></b><span class="dmhb"><button class="btn alt dmcall" title="Call">📞</button><button class="dmx" aria-label="Close">✕</button></span></div><div class="dmlog selectable"></div>
     <div class="dmrow"><button class="btn alt dminv" title="Send a party invite">🎉 Invite</button><input class="dmin" maxlength="300" placeholder="Message" aria-label="Message"><button class="btn gold dmsend">Send</button></div>
     <p class="dmnote">Messages are kept so the owner and admins can check they are safe.</p>`;
   d.querySelector('.dmhead b').textContent='💬 '+name;const log=d.querySelector('.dmlog'),inp=d.querySelector('.dmin');
   const fmt=ts=>{const t=new Date(ts);return t.toLocaleDateString()===new Date().toLocaleDateString()?t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):t.toLocaleDateString()};
-  const draw=()=>{const msgs=ACC.conv[k]||[];log.innerHTML='';if(!msgs.length)log.append(el('p','note','No messages yet. Say hi!'));
+  const head=()=>{const cb=d.querySelector('.dmcall'),act=CALL.activeFor('dm:'+k),mine=CALL.id&&CALL.chatKey==='dm:'+k;cb.textContent=mine?'📞 In call':act?'📞 Join':'📞';cb.classList.toggle('gold',!!act&&!mine)};
+  d.querySelector('.dmcall').onclick=()=>{const act=CALL.activeFor('dm:'+k);if(act&&!(CALL.id&&CALL.chatKey==='dm:'+k))CALL.join(act.id,'dm:'+k);else CALL.start({dm:name})};
+  const draw=()=>{head();const msgs=ACC.conv[k]||[];log.innerHTML='';if(!msgs.length)log.append(el('p','note','No messages yet. Say hi!'));
     msgs.forEach(m=>{const mine=m.f===ACC.name,b=el('div','dmm'+(mine?' me':''));const tx=el('div','dmt');
       if(m.k==='party'){tx.textContent=mine?'You sent a party invite':m.f+' invited you to their party';b.classList.add('party');
         if(!mine){const j=el('button','btn gold dmjoin','🎉 Join party');j.onclick=()=>{NET.sendRaw({t:'party.joinfriend',name:m.f,code:m.code});toast('Joining '+m.f+'\'s party...')};tx.append(el('br'),j)}}
@@ -7286,9 +7368,317 @@ function dmOpen(name){
   d.querySelector('.dmsend').onclick=send;inp.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')send()};inp.onkeyup=e=>e.stopPropagation();
   d.querySelector('.dminv').onclick=()=>{if(!PARTY.cur){NET.sendRaw({t:'party.create',name:user});setTimeout(()=>NET.sendRaw({t:'dm.invite',with:name}),400);toast('Made a party and sent the invite')}else NET.sendRaw({t:'dm.invite',with:name})};
   d.querySelector('.dmx').onclick=dmClose;document.body.append(d);DMUI.el=d;
-  DMUI.off=ACC.on(w=>{if(w==='dm')draw()});draw();NET.sendRaw({t:'dm.history',with:name});NET.sendRaw({t:'dm.read',with:name});setTimeout(()=>inp.focus(),50);
+  DMUI.off=ACC.on(w=>{if(w==='dm'||w==='call')draw()});draw();NET.sendRaw({t:'dm.history',with:name});NET.sendRaw({t:'dm.read',with:name});setTimeout(()=>inp.focus(),50);
 }
 function dmClose(){if(DMUI.el)DMUI.el.remove();if(DMUI.off)DMUI.off();DMUI.el=null;DMUI.off=null;DMUI.open=null}
+
+/* ---------- Group chats ---------- */
+const GCUI={open:null,el:null,off:null};
+function gcBadgeN(){return (ACC.gcs||[]).reduce((a,g)=>a+(g.unread||0),0)}
+function gcNew(){
+  if(!ACC.name)return toast('Sign in to make group chats');
+  const fr=(ACC.friends||[]).filter(f=>f.status==='friend').sort((a,b)=>a.name.localeCompare(b.name));
+  if(!fr.length)return toast('Add some friends first');
+  modal((b,close)=>{
+    b.append(el('h2','','New group chat'));
+    const st='width:100%;margin-bottom:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit';
+    const nm=el('input');nm.placeholder='Group name';nm.maxLength=32;nm.style.cssText=st;nm.setAttribute('aria-label','Group name');
+    const list=el('div','gcpick');const picked=new Set();
+    fr.forEach(f=>{const r=el('label','gcpr');const cb=document.createElement('input');cb.type='checkbox';cb.onchange=()=>{cb.checked?picked.add(f.name):picked.delete(f.name);cnt.textContent=picked.size+' picked'};
+      const s=el('span');s.textContent=f.name;const d=el('span','fdot'+(f.online?' on':''));r.append(cb,d,s);list.append(r)});
+    const cnt=el('div','note','0 picked'),err=el('p','rmsg'),go2=el('button','btn gold','Create'),no=el('button','btn alt','Cancel'),row=el('div','row');no.onclick=close;row.append(go2,no);
+    go2.onclick=async()=>{if(!picked.size){err.textContent='Pick at least one friend.';return}go2.disabled=true;
+      const r=await ACC.req({t:'gc.create',name:nm.value.trim()||[...picked].slice(0,3).join(', '),members:[...picked]});go2.disabled=false;
+      if(!r.ok){err.textContent=r.err||'Could not make it.';return}close();setTimeout(()=>gcOpen(r.id),200)};
+    b.append(nm,el('div','note','Friends (up to 11)'),list,cnt,err,row);setTimeout(()=>nm.focus(),50);
+  });
+}
+function gcOpen(id){
+  dmClose();gcClose();if(!ACC.name)return toast('Sign in first');
+  const g0=(ACC.gcs||[]).find(x=>x.id===id);GCUI.open=id;
+  const d=el('div','dmbox gcbox');d.innerHTML=`<div class="dmhead"><b></b><span class="dmhb"><button class="btn alt dmcall" title="Call the group">📞</button><button class="btn alt gcset" title="Members and settings">⚙️</button><button class="dmx" aria-label="Close">✕</button></span></div><div class="gcmem"></div><div class="dmlog selectable"></div>
+    <div class="dmrow"><button class="btn alt dminv" title="Send a party invite">🎉</button><input class="dmin" maxlength="300" placeholder="Message the group" aria-label="Message"><button class="btn gold dmsend">Send</button></div>
+    <p class="dmnote">Messages are kept so the owner and admins can check they are safe.</p>`;
+  const log=d.querySelector('.dmlog'),inp=d.querySelector('.dmin');
+  const fmt=ts=>{const t=new Date(ts);return t.toLocaleDateString()===new Date().toLocaleDateString()?t.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):t.toLocaleDateString()};
+  const head=()=>{const g=(ACC.gcs||[]).find(x=>x.id===id)||g0;if(!g){gcClose();return}d.querySelector('.dmhead b').textContent='👥 '+g.name;d.querySelector('.gcmem').textContent=g.members.join(', ');
+    const cb=d.querySelector('.dmcall'),act=CALL.activeFor('gc:'+id);cb.textContent=CALL.id&&CALL.chatKey==='gc:'+id?'📞 In call':act?'📞 Join ('+act.n+')':'📞';cb.classList.toggle('gold',!!act&&!(CALL.id&&CALL.chatKey==='gc:'+id))};
+  const draw=()=>{head();const msgs=ACC.gconv[id]||[];log.innerHTML='';if(!msgs.length)log.append(el('p','note','No messages yet. Say hi!'));
+    msgs.forEach(m=>{if(m.k==='sys'){log.append(el('div','gcsys',m.t));return}
+      const mine=m.f===ACC.name,b=el('div','dmm'+(mine?' me':''));if(!mine){const n=el('div','gcfrom');n.textContent=m.f;n.onclick=()=>playerMenu(m.f,{});b.append(n)}
+      const tx=el('div','dmt');
+      if(m.k==='party'){tx.textContent=mine?'You sent a party invite':m.f+' invited the group to their party';b.classList.add('party');
+        if(!mine){const j=el('button','btn gold dmjoin','🎉 Join party');j.onclick=()=>{NET.sendRaw({t:'party.joinfriend',name:m.f,code:m.code});toast('Joining '+m.f+'\'s party...')};tx.append(el('br'),j)}}
+      else tx.textContent=m.t;
+      b.append(tx,el('small','',fmt(m.ts)));log.append(b)});log.scrollTop=log.scrollHeight};
+  const send=()=>{const t=inp.value.trim();if(!t)return;NET.sendRaw({t:'gc.send',id,text:t});inp.value=''};
+  d.querySelector('.dmsend').onclick=send;inp.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')send()};inp.onkeyup=e=>e.stopPropagation();
+  d.querySelector('.dminv').onclick=()=>{if(!PARTY.cur){NET.sendRaw({t:'party.create',name:user});setTimeout(()=>NET.sendRaw({t:'gc.invite',id}),400);toast('Made a party and sent the invite')}else NET.sendRaw({t:'gc.invite',id})};
+  d.querySelector('.dmcall').onclick=()=>CALL.start({gc:id});
+  d.querySelector('.gcset').onclick=()=>gcManage(id);
+  d.querySelector('.dmx').onclick=gcClose;document.body.append(d);GCUI.el=d;
+  GCUI.off=ACC.on(w=>{if(w==='gc'||w==='call')draw()});draw();NET.sendRaw({t:'gc.history',id});setTimeout(()=>inp.focus(),50);
+}
+function gcClose(){if(GCUI.el)GCUI.el.remove();if(GCUI.off)GCUI.off();GCUI.el=null;GCUI.off=null;GCUI.open=null}
+function gcManage(id){
+  const g=(ACC.gcs||[]).find(x=>x.id===id);if(!g)return;const owner=g.owner===ACC.name;
+  modal((b,close)=>{
+    b.append(el('h2','','👥 '+g.name));
+    const st='flex:1;min-width:0;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px;font:inherit';
+    const rn=el('div','row'),ri=el('input');ri.value=g.name;ri.maxLength=32;ri.style.cssText=st;ri.setAttribute('aria-label','Group name');const rb=el('button','btn alt','Rename');
+    rb.onclick=async()=>{const r=await ACC.req({t:'gc.rename',id,name:ri.value.trim()});toast(r.ok?'Renamed':r.err)};rn.append(ri,rb);b.append(rn);
+    b.append(el('h3','','Members ('+g.members.length+'/12)'));
+    g.members.forEach(n=>{const r=el('div','frow'),s=el('b');s.textContent=n+(n===g.owner?'  (owner)':'');s.style.flex='1';r.append(s);
+      if(owner&&n!==ACC.name){const k=el('button','btn alt','Remove');k.onclick=async()=>{const x=await ACC.req({t:'gc.kick',id,name:n});toast(x.ok?n+' removed':x.err);if(x.ok)close()};r.append(k)}b.append(r)});
+    const can=(ACC.friends||[]).filter(f=>f.status==='friend'&&!g.members.includes(f.name));
+    if(can.length&&g.members.length<12){const ar=el('div','row'),sel=el('select');sel.style.cssText=st;can.forEach(f=>{const o=el('option','',f.name);o.value=f.name;sel.append(o)});sel.setAttribute('aria-label','Friend to add');
+      const ab=el('button','btn gold','Add');ab.onclick=async()=>{const x=await ACC.req({t:'gc.add',id,name:sel.value});toast(x.ok?sel.value+' added':x.err);if(x.ok)close()};ar.append(sel,ab);b.append(el('h3','','Add a friend'),ar)}
+    const row=el('div','row'),lv=el('button','btn alt','Leave the group'),cl=el('button','btn alt','Close');
+    lv.onclick=async()=>{if(!confirm('Leave '+g.name+'?'))return;await ACC.req({t:'gc.leave',id});close();gcClose();toast('You left '+g.name)};cl.onclick=close;row.append(lv,cl);b.append(row);
+  });
+}
+
+/* ---------- Calls: DM and group calls with voice, screen sharing and remote control ----------
+   Voice and video go straight between players (WebRTC). The server only rings people and passes the connection messages.
+   Remote control: someone watching your shared screen asks; you allow or deny; you can take it back any time. Their mouse and
+   keys then reach only the game you are playing on this site (never menus, dialogs or other tabs). */
+const CALL=(()=>{
+  const C={id:null,chatKey:null,state:null,peers:new Map(),mic:null,muted:false,screen:null,surface:'',big:false,focus:null,
+    ring:null,ringEl:null,ringTone:0,active:new Map(),ctl:{allowed:new Set(),req:new Map(),me:null,want:null},tick:0,mini:{x:null,y:null,tuck:0}};
+  let ctx=null;const AC=()=>{try{ctx=ctx||new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==='suspended')ctx.resume().catch(()=>{})}catch(e){ctx=null}return ctx};
+  function meter(ms){try{const c=AC();const an=c.createAnalyser();an.fftSize=512;c.createMediaStreamSource(ms).connect(an);const b=new Uint8Array(an.fftSize);
+    return()=>{an.getByteTimeDomainData(b);let s=0;for(let i=0;i<b.length;i++){const x=(b[i]-128)/128;s+=x*x}return Math.sqrt(s/b.length)}}catch(e){return()=>0}}
+  let myLv=()=>0;
+  const fire=()=>{try{ACC.fireCall()}catch(e){}};
+  const keyOf=ch=>ch&&ch.kind==='gc'?'gc:'+ch.id:'dm:'+String(ch&&ch.with||'').toLowerCase();
+  const sig=(to,data)=>NET.sendRaw({t:'call.signal',id:C.id,to,data});
+  const nameOf=id=>{const m=C.state&&C.state.members.find(x=>x.id===id);return m?m.name:'Someone'};
+
+  /* ----- connections ----- */
+  function peer(id){
+    if(C.peers.has(id))return C.peers.get(id);
+    const pc=new RTCPeerConnection({iceServers:NET.ice()});
+    const p={id,pc,polite:String(NET.id)>String(id),making:false,ignore:false,q:[],audio:null,lv:()=>0,level:0,video:null,dc:null,ssender:null};
+    C.peers.set(id,p);
+    if(C.mic)C.mic.getTracks().forEach(t=>pc.addTrack(t,C.mic));
+    if(C.screen)C.screen.getVideoTracks().forEach(t=>{p.ssender=pc.addTrack(t,C.screen)});
+    try{p.dc=pc.createDataChannel('ctl',{negotiated:true,id:0});p.dc.onmessage=e=>onInput(p,e.data)}catch(e){}
+    pc.onicecandidate=e=>{if(e.candidate)sig(id,{c:e.candidate.toJSON()})};
+    pc.onnegotiationneeded=async()=>{try{p.making=true;await pc.setLocalDescription();sig(id,{d:pc.localDescription.toJSON()})}catch(e){}finally{p.making=false}};
+    pc.ontrack=e=>{const tr=e.track,ms=(e.streams&&e.streams[0])||new MediaStream([tr]);
+      if(tr.kind==='audio'){if(!p.audio){const a=new Audio();a.autoplay=true;p.audio=a}p.audio.srcObject=ms;p.audio.play().catch(()=>{});p.lv=meter(ms)}
+      else{p.video=new MediaStream([tr]);const off=()=>{if(p.video&&p.video.getVideoTracks()[0]===tr){p.video=null;draw()}};tr.onended=off;ms.onremovetrack=off;draw()}};
+    pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed')toast('The call could not connect to '+nameOf(id)+'. A network between you blocks direct connections (the server needs a TURN server, see Admin > Overview).');draw()};
+    return p}
+  function dropPeer(id){const p=C.peers.get(id);if(!p)return;C.peers.delete(id);try{p.pc.close()}catch(e){}if(p.audio){p.audio.srcObject=null}C.ctl.allowed.delete(id);C.ctl.req.delete(id);if(C.ctl.me===id){C.ctl.me=null;ctlStop()}}
+  async function onSignal(from,data){if(!C.id||!data)return;const p=peer(from),pc=p.pc;
+    try{
+      if(data.d){const desc=data.d,col=desc.type==='offer'&&(p.making||pc.signalingState!=='stable');p.ignore=!p.polite&&col;if(p.ignore)return;
+        await pc.setRemoteDescription(desc);for(const c of p.q.splice(0))try{await pc.addIceCandidate(c)}catch(e){}
+        if(desc.type==='offer'){await pc.setLocalDescription();sig(from,{d:pc.localDescription.toJSON()})}}
+      else if(data.c){if(pc.remoteDescription)try{await pc.addIceCandidate(data.c)}catch(e){}else p.q.push(data.c)}
+      else if(data.ctl)onCtl(from,data.ctl);
+    }catch(e){}}
+
+  /* ----- joining and leaving ----- */
+  async function getMic(){if(C.mic)return true;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.RTCPeerConnection){toast('Calls are not supported in this browser');return false}
+    try{C.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});myLv=meter(C.mic);if(C.muted)C.mic.getAudioTracks().forEach(t=>{t.enabled=false})}
+    catch(e){toast('No microphone: you can still listen and watch. Allow the microphone to talk.')}return true}
+  C.start=async o=>{if(!ACC.name)return toast('Sign in to make calls');
+    const k=o.gc?'gc:'+o.gc:'dm:'+String(o.dm).toLowerCase();if(C.id&&C.chatKey===k){C.expand();return}
+    if(C.id)C.leave(true);if(!(await getMic()))return;AC();C.chatKey=k;NET.sendRaw({t:'call.start',...(o.gc?{gc:o.gc}:{dm:o.dm})})};
+  C.accept=async()=>{const r=C.ring;if(!r)return;stopRing();if(C.id&&C.id!==r.id)C.leave(true);if(!(await getMic()))return;AC();NET.sendRaw({t:'call.join',id:r.id});C.pendingBig=true};
+  C.decline=()=>{const r=C.ring;if(!r)return;NET.sendRaw({t:'call.decline',id:r.id});stopRing()};
+  C.join=async(id,k)=>{if(C.id===id){C.expand();return}if(C.id)C.leave(true);if(!(await getMic()))return;AC();C.chatKey=k||null;NET.sendRaw({t:'call.join',id});C.pendingBig=true};
+  C.leave=quiet=>{if(!C.id)return;NET.sendRaw({t:'call.leave',id:C.id});cleanup();if(!quiet)toast('You left the call')};
+  function cleanup(){for(const id of[...C.peers.keys()])dropPeer(id);if(C.screen){C.screen.getTracks().forEach(t=>t.stop());C.screen=null}
+    if(C.mic){C.mic.getTracks().forEach(t=>t.stop());C.mic=null}C.id=null;C.state=null;C.big=false;C.focus=null;C.ctl.allowed.clear();C.ctl.req.clear();C.ctl.me=null;C.ctl.want=null;ctlStop();
+    clearInterval(C.tick);C.tick=0;removeUI();fire()}
+  C.toggleMute=()=>{C.muted=!C.muted;if(C.mic)C.mic.getAudioTracks().forEach(t=>{t.enabled=!C.muted});if(C.id)NET.sendRaw({t:'call.mute',id:C.id,muted:C.muted});draw()};
+  C.share=async()=>{if(C.screen)return stopShare();if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia)return toast('Screen sharing is not supported in this browser');
+    let s;try{s=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:30},audio:false,preferCurrentTab:true,selfBrowserSurface:'include',surfaceSwitching:'exclude'})}catch(e){return}
+    if(!C.id){s.getTracks().forEach(t=>t.stop());return}
+    C.screen=s;const tr=s.getVideoTracks()[0];try{tr.contentHint='motion'}catch(e){}tr.onended=stopShare;
+    C.surface=(tr.getSettings&&tr.getSettings().displaySurface)||'';
+    for(const p of C.peers.values())try{p.ssender=p.pc.addTrack(tr,s)}catch(e){}
+    NET.sendRaw({t:'call.share',id:C.id,on:true});toast(C.surface==='browser'?'Sharing this tab':'Sharing your screen');draw()};
+  function stopShare(){if(!C.screen)return;C.screen.getTracks().forEach(t=>t.stop());for(const p of C.peers.values()){if(p.ssender){try{p.pc.removeTrack(p.ssender)}catch(e){}p.ssender=null}}
+    C.screen=null;for(const id of[...C.ctl.allowed])sig(id,{ctl:'revoke'});C.ctl.allowed.clear();for(const id of[...C.ctl.req.keys()])sig(id,{ctl:'deny'});C.ctl.req.clear();ctlCursorsClear();
+    if(C.id)NET.sendRaw({t:'call.share',id:C.id,on:false});draw()}
+  C.partyInvite=()=>{const others=(C.state&&C.state.members||[]).filter(m=>m.id!==NET.id).map(m=>m.name);if(!others.length)return toast('Nobody else is in the call yet');
+    const send=()=>{others.forEach(n=>NET.sendRaw({t:'party.invite',target:n}));toast('Party invite sent to '+others.join(', '))};
+    if(!PARTY.cur){NET.sendRaw({t:'party.create',name:user});setTimeout(send,400)}else send()};
+  C.ringOthers=()=>{if(C.id){NET.sendRaw({t:'call.ring',id:C.id});toast('Ringing everyone who is not in the call')}};
+  C.activeFor=k=>C.active.get(k)||null;
+
+  /* ----- server messages ----- */
+  C.msg=m=>{switch(m.t){
+    case'call.ring':if(C.id===m.id)return;C.ring={id:m.id,from:m.from,title:m.title,kind:m.kind};showRing();break;
+    case'call.ringend':if(C.ring&&C.ring.id===m.id)stopRing();break;
+    case'call.state':{const first=C.id!==m.id;C.id=m.id;C.state=m;C.chatKey=m.chat.kind==='gc'?'gc:'+m.chat.id:'dm:'+String(m.title||'').toLowerCase();
+      const ids=new Set(m.members.map(x=>x.id));for(const id of[...C.peers.keys()])if(!ids.has(id))dropPeer(id);
+      for(const x of m.members)if(!x.share){const p=C.peers.get(x.id);if(p&&p.video){p.video=null}}
+      if(first){if(!C.tick)C.tick=setInterval(levels,120);C.big=!!C.pendingBig||C.big;C.pendingBig=false;if(!C.big&&m.members.length<=1)C.big=true}
+      draw();fire();break}
+    case'call.joined':if(m.id===C.id){peer(m.peer);AUD.sfx('coin');toast(m.name+' joined the call')}break;
+    case'call.left':if(m.id===C.id){dropPeer(m.peer);draw()}break;
+    case'call.declined':if(m.id===C.id)toast(m.name+' declined the call');break;
+    case'call.signal':if(m.id===C.id)onSignal(m.from,m.data);break;
+    case'call.end':if(m.id===C.id){cleanup();toast('Call ended')}if(C.ring&&C.ring.id===m.id)stopRing();break;
+    case'call.status':{const k=keyOf(m.chat);if(m.active)C.active.set(k,{id:m.id,n:m.n});else C.active.delete(k);fire();break}
+  }};
+
+  /* ----- ringing ----- */
+  function tone(){const c=AC();if(!c)return;const t=c.currentTime;[0,.18].forEach((d,i)=>{const o=c.createOscillator(),g=c.createGain();o.frequency.value=i?660:880;g.gain.setValueAtTime(.0001,t+d);g.gain.exponentialRampToValueAtTime(.12,t+d+.02);g.gain.exponentialRampToValueAtTime(.0001,t+d+.16);o.connect(g);g.connect(c.destination);o.start(t+d);o.stop(t+d+.18)})}
+  function showRing(){stopRingUI();const r=C.ring;const d=el('div','callring');
+    d.innerHTML='<div class="crav"></div><div class="crtx"><b></b><span></span></div><button class="crno" aria-label="Decline">✕</button><button class="cryes" aria-label="Accept">📞</button>';
+    d.querySelector('.crav').textContent=(r.from||'?')[0].toUpperCase();d.querySelector('.crav').style.background=hueOf(r.from);
+    d.querySelector('b').textContent=r.kind==='gc'?r.title:r.from;d.querySelector('span').textContent=r.kind==='gc'?r.from+' started a group call':'is calling you…';
+    d.querySelector('.crno').onclick=C.decline;d.querySelector('.cryes').onclick=C.accept;document.body.append(d);C.ringEl=d;
+    tone();C.ringTone=setInterval(tone,1600);setTimeout(()=>{if(C.ring===r)stopRing()},30000)}
+  function stopRingUI(){clearInterval(C.ringTone);C.ringTone=0;if(C.ringEl){C.ringEl.remove();C.ringEl=null}}
+  function stopRing(){C.ring=null;stopRingUI()}
+
+  /* ----- talking levels ----- */
+  function levels(){if(!C.id)return;let ch=false;
+    const me=!C.muted&&myLv()>.035;if(me!==C.meTalk){C.meTalk=me;ch=true}
+    for(const p of C.peers.values()){const t=p.lv()>.035;if(t!==p.talk){p.talk=t;ch=true}if(t)C.lastTalk=p.id}
+    if(me)C.lastTalk=NET.id;if(ch)drawLight();if(UI.timer)UI.timer.textContent=fmtDur(Date.now()-(C.state?C.state.started:Date.now()));
+    if(UI.mtime)UI.mtime.textContent=fmtDur(Date.now()-(C.state?C.state.started:Date.now()))}
+  const fmtDur=ms=>{const s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+  const hueOf=n=>{let h=0;for(const ch of String(n||''))h=(h*31+ch.charCodeAt(0))%360;return'hsl('+h+' 55% 45%)'};
+
+  /* ----- which screen to show ----- */
+  function shares(){const out=[];if(!C.state)return out;for(const m of C.state.members){if(!m.share)continue;if(m.id===NET.id){if(C.screen)out.push({id:m.id,name:'You',stream:C.screen,mine:true})}else{const p=C.peers.get(m.id);if(p&&p.video)out.push({id:m.id,name:m.name,stream:p.video})}}return out}
+  function focusShare(){const s=shares();if(!s.length)return null;return s.find(x=>x.id===C.focus)||s.find(x=>!x.mine)||s[0]}
+
+  /* ===== UI: the big call screen and the small floating window ===== */
+  const UI={big:null,mini:null,timer:null,mtime:null};
+  function removeUI(){if(UI.big){UI.big.remove();UI.big=null}if(UI.mini){UI.mini.remove();UI.mini=null}UI.timer=null;UI.mtime=null}
+  C.expand=()=>{if(!C.id)return;C.big=true;draw()};
+  C.minimize=()=>{C.big=false;draw()};
+  function tileFor(m){const t=el('div','ctile');const av=el('div','cav');av.textContent=(m.name||'?')[0].toUpperCase();av.style.background=hueOf(m.name);
+    const n=el('div','cname');n.textContent=(m.id===NET.id?'You':m.name)+(m.muted?'  🔇':'')+(m.share?'  🖥️':'');t.append(av,n);t.dataset.id=m.id;return t}
+  function drawLight(){const talking=id=>id===NET.id?C.meTalk:!!(C.peers.get(id)&&C.peers.get(id).talk);
+    if(UI.big)UI.big.querySelectorAll('.ctile').forEach(t=>t.classList.toggle('talk',talking(t.dataset.id)));
+    if(UI.mini&&!focusShare()){const id=C.lastTalk&&C.state&&C.state.members.some(x=>x.id===C.lastTalk)?C.lastTalk:(C.state&&C.state.members.find(x=>x.id!==NET.id)||{}).id||NET.id;
+      const m=C.state&&C.state.members.find(x=>x.id===id);const av=UI.mini.querySelector('.cav');if(av&&m){av.textContent=(m.name||'?')[0].toUpperCase();av.style.background=hueOf(m.name);av.classList.toggle('talk',talking(id));UI.mini.querySelector('.mnm').textContent=m.id===NET.id?'You':m.name}}}
+  function draw(){if(!C.id||!C.state){removeUI();return}if(C.big){if(UI.mini){UI.mini.remove();UI.mini=null}drawBig()}else{if(UI.big){UI.big.remove();UI.big=null;UI.timer=null}drawMini()}drawLight()}
+  C.redraw=draw;
+  function drawBig(){
+    const s=C.state,fs=focusShare();let d=UI.big;
+    if(!d){d=el('div','callui');d.innerHTML='<div class="chd"><button class="cmin" title="Minimize">⌄</button><div class="cti"><b></b><span></span></div><div class="cct"></div></div><div class="cstage"></div><div class="cside"></div><div class="cbar"></div>';
+      document.body.append(d);UI.big=d;d.querySelector('.cmin').onclick=C.minimize}
+    d.querySelector('.cti b').textContent=(s.chat.kind==='gc'?'👥 ':'')+s.title;UI.timer=d.querySelector('.cti span');
+    d.querySelector('.cct').textContent=s.members.length+' in call'+(s.ring&&s.ring.length?'  ·  ringing '+s.ring.join(', '):'');
+    const st=d.querySelector('.cstage');st.innerHTML='';st.classList.toggle('has',!!fs);
+    if(fs){const wrap=el('div','cvid');const v=document.createElement('video');v.autoplay=true;v.playsInline=true;v.muted=true;v.srcObject=fs.stream;wrap.append(v);
+      const lab=el('div','cvlab');lab.textContent=(fs.mine?'You are sharing':fs.name+'\'s screen')+(C.ctl.me===fs.id?'  ·  🖱️ you are controlling it (Esc to stop)':'');wrap.append(lab);
+      if(!fs.mine&&C.ctl.me===fs.id)ctlAttach(wrap,v,fs.id);st.append(wrap);
+      const all=shares();if(all.length>1){const sw=el('div','cswitch');all.forEach(x=>{const b=el('button','btn '+(x.id===fs.id?'gold':'alt'),x.name);b.onclick=()=>{C.focus=x.id;draw()};sw.append(b)});st.append(sw)}}
+    const tiles=el('div','ctiles'+(fs?' strip':''));s.members.forEach(m=>tiles.append(tileFor(m)));st.append(tiles);
+    /* remote control panel */
+    const side=d.querySelector('.cside');side.innerHTML='';
+    if(C.screen){if(C.ctl.req.size||C.ctl.allowed.size){const h=el('div','cctl');h.append(el('b','','🖱️ Control of your screen'));
+        for(const[id,nm]of C.ctl.req){const r=el('div','cctlr'),t=el('span');t.textContent=nm+' wants to control your screen';const a=el('button','btn gold','Allow'),n=el('button','btn alt','Deny');
+          a.disabled=C.surface!=='browser';if(a.disabled)a.title='Share this tab (not a window or the whole screen) so their clicks land in the right place';
+          a.onclick=()=>{C.ctl.req.delete(id);C.ctl.allowed.add(id);sig(id,{ctl:'grant'});toast(nm+' can control your game now');draw()};n.onclick=()=>{C.ctl.req.delete(id);sig(id,{ctl:'deny'});draw()};r.append(t,a,n);h.append(r)}
+        for(const id of C.ctl.allowed){const r=el('div','cctlr'),t=el('span');t.textContent=nameOf(id)+' is controlling your game';const x=el('button','btn alt','Remove');x.onclick=()=>{C.ctl.allowed.delete(id);sig(id,{ctl:'revoke'});ctlCursorsClear();draw()};r.append(t,x);h.append(r)}
+        if(C.surface!=='browser'&&C.ctl.req.size)h.append(el('div','note','To allow control, share this tab instead of a window or your whole screen.'));
+        side.append(h)}}
+    else if(fs&&!fs.mine){const h=el('div','cctl');
+      if(C.ctl.me===fs.id){const x=el('button','btn alt','Stop controlling');x.onclick=()=>{sig(fs.id,{ctl:'release'});C.ctl.me=null;ctlStop();draw()};h.append(el('span','','🖱️ You are controlling '+fs.name+'\'s game. Click into the video to play.'),x)}
+      else if(C.ctl.want===fs.id)h.append(el('span','','⏳ Asked '+fs.name+' for control…'));
+      else{const b=el('button','btn alt','🖱️ Ask to control');b.onclick=()=>{C.ctl.want=fs.id;sig(fs.id,{ctl:'req'});draw()};h.append(b)}
+      side.append(h)}
+    /* buttons */
+    const bar=d.querySelector('.cbar');bar.innerHTML='';
+    const btn=(ic,t,cls,fn)=>{const b=el('button','cbtn '+(cls||''));b.innerHTML='<i></i><span></span>';b.querySelector('i').textContent=ic;b.querySelector('span').textContent=t;b.onclick=fn;bar.append(b);return b};
+    btn(C.muted?'🔇':'🎤',C.muted?'Unmute':'Mute',C.muted?'on':'',C.toggleMute);
+    btn('🖥️',C.screen?'Stop sharing':'Share screen',C.screen?'on':'',C.share);
+    btn('🎉','Invite to party','',C.partyInvite);
+    if(s.chat.kind==='gc'){btn('🔔','Ring everyone','',C.ringOthers);btn('➕','Add people','',()=>gcManage(s.chat.id))}
+    btn('💬','Chat','',()=>{if(s.chat.kind==='gc')gcOpen(s.chat.id);else dmOpen(s.title);C.minimize()});
+    btn('📞','Leave','end',()=>C.leave());
+  }
+  function drawMini(){
+    let d=UI.mini;const fs=focusShare();
+    if(!d){d=el('div','callmini');document.body.append(d);UI.mini=d;miniDrag(d)}
+    const want=fs?'v:'+fs.id:'a';if(d.dataset.k!==want||!d.firstChild){d.dataset.k=want;d.innerHTML='';
+      if(fs){const v=document.createElement('video');v.autoplay=true;v.playsInline=true;v.muted=true;v.srcObject=fs.stream;d.append(v);const l=el('div','mlab');l.textContent=fs.mine?'You':fs.name;d.append(l);d.classList.add('vid')}
+      else{d.classList.remove('vid');d.append(el('div','cav'),el('div','mnm'))}
+      const t=el('div','mtime');d.append(t);UI.mtime=t;d.append(el('div','mmute'));const tab=el('div','mtab','📞');d.append(tab)}
+    d.querySelector('.mmute').textContent=C.muted?'🔇':'';
+    placeMini(false)}
+  /* the floating window: drag it anywhere, it settles in the nearest corner; fling it off a side to tuck it away; tap to open */
+  function placeMini(anim){const d=UI.mini;if(!d)return;const M=C.mini,w=d.offsetWidth||130,h=d.offsetHeight||170,W=innerWidth,H=innerHeight,pad=12;
+    if(M.x==null){M.x=W-w-pad;M.y=Math.max(70,H*.12)}
+    let x=M.tuck?(M.tuck<0?-w+22:W-22):M.x;const y=Math.max(pad,Math.min(H-h-pad,M.y));M.y=y;
+    d.classList.toggle('tuck',!!M.tuck);d.classList.toggle('tl',M.tuck<0);d.style.transition=anim?'transform .28s cubic-bezier(.2,.9,.3,1.15)':'none';d.style.transform='translate('+x+'px,'+y+'px)'}
+  function miniDrag(d){let sx=0,sy=0,ox=0,oy=0,moved=false,down=false,lt=0,lx=0,vx=0;
+    d.addEventListener('pointerdown',e=>{down=true;moved=false;sx=e.clientX;sy=e.clientY;const r=d.getBoundingClientRect();ox=r.left;oy=r.top;lt=performance.now();lx=e.clientX;vx=0;try{d.setPointerCapture(e.pointerId)}catch(_){}d.style.transition='none';e.preventDefault()});
+    d.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-sx,dy=e.clientY-sy;if(Math.abs(dx)+Math.abs(dy)>6)moved=true;if(!moved)return;
+      const now=performance.now();vx=(e.clientX-lx)/Math.max(1,now-lt)*1000;lx=e.clientX;lt=now;C.mini.tuck=0;d.classList.remove('tuck');d.style.transform='translate('+(ox+dx)+'px,'+(oy+dy)+'px)'});
+    const up=e=>{if(!down)return;down=false;const M=C.mini,W=innerWidth,w=d.offsetWidth,pad=12;
+      if(!moved){if(M.tuck){M.tuck=0;placeMini(true)}else C.expand();return}
+      const r=d.getBoundingClientRect();const cx=r.left+w/2;M.y=r.top;
+      if(r.left<-w*.35||(vx<-1400&&cx<W*.5))M.tuck=-1;else if(r.right>W+w*.35||(vx>1400&&cx>W*.5))M.tuck=1;else{M.tuck=0;M.x=cx<W/2?pad:W-w-pad}
+      placeMini(true)};
+    d.addEventListener('pointerup',up);d.addEventListener('pointercancel',up);addEventListener('resize',()=>placeMini(false))}
+
+  /* ===== remote control ===== */
+  function onCtl(from,k){
+    if(k==='req'){if(!C.screen){sig(from,{ctl:'deny'});return}C.ctl.req.set(from,nameOf(from));toast('🖱️ '+nameOf(from)+' wants to control your screen');AUD.sfx('coin');if(!C.big)C.expand();else draw()}
+    else if(k==='release'){C.ctl.allowed.delete(from);ctlCursorsClear();draw()}
+    else if(k==='grant'){if(C.ctl.want===from){C.ctl.want=null;C.ctl.me=from;toast('You can control '+nameOf(from)+'\'s game now. Click into the video.');draw()}}
+    else if(k==='deny'){if(C.ctl.want===from){C.ctl.want=null;toast(nameOf(from)+' said no');draw()}}
+    else if(k==='revoke'){if(C.ctl.me===from){C.ctl.me=null;ctlStop();toast(nameOf(from)+' took back control');draw()}}}
+  /* viewer side: send what you do over the shared video */
+  let ctlOff=null;
+  function ctlStop(){if(ctlOff){ctlOff();ctlOff=null}}
+  function ctlAttach(wrap,v,sid){ctlStop();const p=C.peers.get(sid);if(!p)return;wrap.classList.add('ctl');wrap.tabIndex=0;
+    const send=o=>{try{if(p.dc&&p.dc.readyState==='open')p.dc.send(JSON.stringify(o))}catch(e){}};
+    const uv=e=>{const r=v.getBoundingClientRect(),vw=v.videoWidth||16,vh=v.videoHeight||9,sc=Math.min(r.width/vw,r.height/vh),w=vw*sc,h=vh*sc,x0=r.left+(r.width-w)/2,y0=r.top+(r.height-h)/2;
+      return{u:Math.max(0,Math.min(1,(e.clientX-x0)/w)),v:Math.max(0,Math.min(1,(e.clientY-y0)/h)),inside:e.clientX>=x0&&e.clientX<=x0+w&&e.clientY>=y0&&e.clientY<=y0+h}};
+    let lastM=0;
+    const pd=e=>{const q=uv(e);if(!q.inside)return;wrap.focus();send({k:'pd',u:q.u,v:q.v,b:e.button});e.preventDefault()};
+    const pm=e=>{const now=performance.now();if(now-lastM<16)return;lastM=now;const q=uv(e);send({k:'pm',u:q.u,v:q.v,bs:e.buttons})};
+    const pu=e=>{const q=uv(e);send({k:'pu',u:q.u,v:q.v,b:e.button})};
+    const wh=e=>{const q=uv(e);send({k:'wh',u:q.u,v:q.v,dx:e.deltaX,dy:e.deltaY});e.preventDefault()};
+    const kd=e=>{if(!UI.big||C.ctl.me!==sid)return;if(e.target&&e.target.closest&&e.target.closest('input,textarea'))return;
+      if(e.key==='Escape'){sig(sid,{ctl:'release'});C.ctl.me=null;ctlStop();draw();return}
+      send({k:e.type==='keydown'?'kd':'ku',key:e.key,code:e.code,kc:e.keyCode,r:e.repeat});e.preventDefault();e.stopImmediatePropagation()};
+    v.addEventListener('pointerdown',pd);addEventListener('pointermove',pm);addEventListener('pointerup',pu);v.addEventListener('wheel',wh,{passive:false});v.addEventListener('contextmenu',e=>e.preventDefault());
+    addEventListener('keydown',kd,true);addEventListener('keyup',kd,true);
+    ctlOff=()=>{v.removeEventListener('pointerdown',pd);removeEventListener('pointermove',pm);removeEventListener('pointerup',pu);v.removeEventListener('wheel',wh);removeEventListener('keydown',kd,true);removeEventListener('keyup',kd,true)}}
+  /* sharer side: play what an allowed person does, but only inside the game window */
+  const cursors=new Map();let kwin=window;
+  function ctlCursorsClear(){for(const c of cursors.values())c.remove();cursors.clear()}
+  function cursorFor(id,x,y){let c=cursors.get(id);if(!c){c=el('div','rcur');const n=el('span');n.textContent=nameOf(id);c.append(n);document.body.append(c);cursors.set(id,c)}c.style.transform='translate('+x+'px,'+y+'px)'}
+  function onInput(p,raw){if(!C.screen||!C.ctl.allowed.has(p.id))return;let e;try{e=JSON.parse(raw)}catch(_){return}if(!e||typeof e.k!=='string')return;
+    const W=innerWidth,H=innerHeight;
+    if(e.k==='kd'||e.k==='ku'){const w=kwin&&kwin.document?kwin:window,doc=w.document,t=doc.activeElement&&doc.activeElement!==doc.body?doc.activeElement:doc.body;
+      if(!allowedKeyTarget(w,t))return;
+      const ev=new w.KeyboardEvent(e.k==='kd'?'keydown':'keyup',{key:String(e.key||'').slice(0,20),code:String(e.code||'').slice(0,20),repeat:!!e.r,bubbles:true,cancelable:true,composed:true});
+      try{Object.defineProperty(ev,'keyCode',{get:()=>+e.kc||0});Object.defineProperty(ev,'which',{get:()=>+e.kc||0})}catch(_){}
+      t.dispatchEvent(ev);return}
+    const u=+e.u,v=+e.v;if(!(u>=0&&u<=1&&v>=0&&v<=1))return;let x=u*W,y=v*H;cursorFor(p.id,x,y);
+    let top=document.elementFromPoint(x,y);if(!top||!allowedTarget(top))return;
+    let t=top,w=window;
+    for(let i=0;i<4&&t&&t.tagName==='IFRAME';i++){try{const r=t.getBoundingClientRect(),d=t.contentDocument;if(!d)break;x-=r.left;y-=r.top;w=t.contentWindow;t=d.elementFromPoint(x,y)||d.body}catch(_){break}}
+    if(!t)return;kwin=w;
+    const base={bubbles:true,cancelable:true,composed:true,clientX:x,clientY:y,screenX:x,screenY:y,view:w,button:e.b|0,buttons:e.k==='pm'?(e.bs|0):e.k==='pd'?1:0};
+    const P=(type)=>{try{t.dispatchEvent(new w.PointerEvent(type,{...base,pointerId:1,pointerType:'mouse',isPrimary:true}))}catch(_){}},M=type=>{try{t.dispatchEvent(new w.MouseEvent(type,base))}catch(_){}};
+    if(e.k==='pd'){try{if(t.focus)t.focus({preventScroll:true})}catch(_){}P('pointerdown');M('mousedown')}
+    else if(e.k==='pm'){P('pointermove');M('mousemove')}
+    else if(e.k==='pu'){P('pointerup');M('mouseup');if((e.b|0)===0)M('click');else if((e.b|0)===2)M('contextmenu')}
+    else if(e.k==='wh'){try{t.dispatchEvent(new w.WheelEvent('wheel',{...base,deltaX:+e.dx||0,deltaY:+e.dy||0}))}catch(_){}}}
+  /* control reaches the game you are playing, never the site's menus, dialogs, the call itself or the window's Exit bar */
+  function allowedTarget(t){if(!t.closest)return false;if(t.closest('.callui,.callmini,.callring,.gmodal,.dmbox,.banpage,.wbar,.rcur'))return false;const w=t.closest('.win');return!!(w&&!w.classList.contains('min'))}
+  function allowedKeyTarget(w,t){if(w!==window)return true;if(t&&t.closest&&(t.closest('input,textarea,select,.callui,.dmbox,.gmodal')))return false;return document.body.classList.contains('in-game')}
+  return C;
+})();
 
 /* ---------- Sparks ---------- */
 function burst(x,y,color){

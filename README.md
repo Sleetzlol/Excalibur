@@ -179,6 +179,7 @@ Game folders sit next to `server.js` (or in the folder named by `GAMES_DIR`), an
       ]
     }
 
+- **The game folders must be in the repo** next to `server.js` (or in `GAMES_DIR`). A game whose folder is missing shows "Not Found".
 - `path` is the page that starts the game, `thumb` is its picture, `cat` puts it in a category chip on the Games page (optional), `desc` is optional.
 - Each game shows as a card with its picture; clicking it opens the game full page in a frame, with Exit at the top. Old V1 game pages have their header, stars and footer hidden automatically, so only the game shows.
 - The server only serves the folders that `games.json` names (plus `folders`, which is for shared folders the games load from, like `js`), the `icons` folder and the site itself. `server.js`, the data folder, `.git` and every other file stay private.
@@ -188,6 +189,17 @@ Game folders sit next to `server.js` (or in the folder named by `GAMES_DIR`), an
 **⚙️ Settings** in the menu:
 - **Tab name and icon**: type any tab name and pick an icon. The icons are the `.ico`/`.png`/`.svg` files in the site's `icons` folder; players can also use their own picture (under 200 KB). It is saved in that browser and applied on every visit.
 - **Open in about:blank**: opens the site in a new tab whose address is about:blank, with that tab name and icon; the site runs inside it, the same as normal (accounts, chat, voice and games all work).
+
+## Group chats
+**Friends > 👥 Group chats > ＋ New group chat**: a name and up to 11 friends. Everyone in the group can message, send a party invite (🎉), add their own friends (12 people at most), rename it and leave; the owner can also remove people (⚙️ in the chat window). The last 100 messages are kept on the server like DMs.
+
+## Calls (DMs and group chats)
+📞 in a DM, on a friend's row, or on a group chat starts a call; the other people get an incoming-call banner with a ringtone for 30 seconds (✕ declines, the green button answers). If a call is already going on, the button says **Join**.
+- **The call screen**: everyone's bubble lights up green while they talk; buttons to mute, share your screen, invite everyone in the call to your party, ring everyone again and add people (groups), open the chat, and leave. A DM call ends when one of you leaves; a group call goes on until the last person leaves.
+- **The small window**: ⌄ shrinks the call to a small floating window (like iOS). It shows whoever is talking, or the shared screen if someone is sharing. Drag it anywhere and it settles on the nearest side; fling or drag it off a side and it tucks away into a small green tab (tap the tab to bring it back). Tap the window to open the call again.
+- **Screen sharing**: 🖥️ shares a tab, a window or your screen. If more than one person shares, buttons above the call pick whose screen to watch.
+- **Letting someone use your screen**: someone watching your share presses **🖱️ Ask to control**. You see the request in the call and choose **Allow** or **Deny**; **Remove** takes control back at any time, and stopping the share ends it for everyone. While they control it, you see their pointer with their name, and their mouse, wheel and keys reach the game you are playing on this site. They cannot click the site's menus, the Exit bar, dialogs, chats or the call itself, and nothing outside this tab. For their clicks to land in the right place, share **this tab** (the browser offers it first); Allow is greyed out when you share a window or your whole screen.
+- Voice and video go directly between players (WebRTC), the same as the game voice chat; the server only rings people and passes the connection messages. Players on strict networks need the TURN server set up (see Voice chat). Calls hold up to 12 people; with many people sharing at once, each person's upload is the limit.
 
 ## Coins live on the server
 Signed in, the browser never decides a balance. Coins, XP, owned items, crates, the daily streak and level rewards are stored only on the server, and the page keeps them in memory (nothing about an account's wallet is written to the browser's storage).
@@ -275,7 +287,7 @@ You need to allow the microphone in the browser, and the site must be on https (
 `dm.send`, `dm.invite`, `dm.history`, `dm.read`, `dm.list`; `party.open`, `party.joinfriend`; staff `admin.dms`, `admin.dmlog`; owner `admin.event`, `admin.eventend`; `admin.announce` takes `secs` (5 to 60) and is shown as a banner (`user.announce`). Polls carry who started them. Profiles carry `pat` (skin pattern), `tr` (trail), `kf` (kill effect) and `pt` (a party tag, not the join code). A new room kind `event` holds up to 40 players, and the owner is always its host.
 
 ## Server messages added for the economy and anti-cheat
-`econ.earn`, `econ.daily`, `econ.level`, `econ.spend`, `econ.buy`, `econ.crate`, `econ.eventwin`, `casino.slots`, `casino.flip`, `casino.roulette`, `casino.bj`, `casino.poker` (answer: `econ.res`); `wallet.set` pushes the balance; `ban.appeal` (`appeal.res`); `ac.suspect` from other players (the server records replays itself); staff `admin.ac`, `admin.acclip`, `admin.acdismiss`, `admin.acrecord`, `admin.appeals`, `admin.appeal`; `admin.ban` takes `cat`, `reason`, `hours` or `perm`.
+`gc.create`, `gc.list`, `gc.history`, `gc.send`, `gc.read`, `gc.invite`, `gc.add`, `gc.rename`, `gc.kick`, `gc.leave`; `call.start`, `call.join`, `call.decline`, `call.leave`, `call.signal`, `call.mute`, `call.share`, `call.ring` (server sends `call.ring`, `call.ringend`, `call.state`, `call.joined`, `call.left`, `call.declined`, `call.end`, `call.status`); `econ.earn`, `econ.daily`, `econ.level`, `econ.spend`, `econ.buy`, `econ.crate`, `econ.eventwin`, `casino.slots`, `casino.flip`, `casino.roulette`, `casino.bj`, `casino.poker` (answer: `econ.res`); `wallet.set` pushes the balance; `ban.appeal` (`appeal.res`); `ac.suspect` from other players (the server records replays itself); staff `admin.ac`, `admin.acclip`, `admin.acdismiss`, `admin.acrecord`, `admin.appeals`, `admin.appeal`; `admin.ban` takes `cat`, `reason`, `hours` or `perm`.
 
 ## Limits the server enforces
 8 connections per address, 400 in all, 200 rooms, 5,000 accounts. Messages over 8 KB are refused; players sending far too many are slowed and then removed.

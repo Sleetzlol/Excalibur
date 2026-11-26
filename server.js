@@ -108,7 +108,7 @@ async function loadDb(){
       await new Promise(r=>setTimeout(r,2000));
     }
   }else{try{db=Object.assign(db,JSON.parse(fs.readFileSync(DB_FILE,'utf8')));storage.ok=true;storage.at=Date.now()}catch(e){}}
-  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];db.dm=db.dm&&typeof db.dm==='object'?db.dm:{};db.ac=Array.isArray(db.ac)?db.ac:[];
+  db.reports=db.reports||[];db.tokens=db.tokens||{};db.accounts=db.accounts||{};db.audit=db.audit||[];db.worlds=Array.isArray(db.worlds)?db.worlds:[];db.dm=db.dm&&typeof db.dm==='object'?db.dm:{};db.ac=Array.isArray(db.ac)?db.ac:[];db.gc=db.gc&&typeof db.gc==='object'?db.gc:{};
   /* accounts made by older versions may be missing fields: fill them in so nothing downstream ever sees undefined */
   for(const a of Object.values(db.accounts)){
     if(!Array.isArray(a.owned)||!a.owned.length)a.owned=cosList(a.owned);
@@ -204,7 +204,7 @@ class Conn{
   }
   send(o){if(this.alive)try{this.s.write(frame(1,Buffer.from(JSON.stringify(o))))}catch(e){}}
   kill(c,reason){if(!this.alive)return;try{const r=Buffer.from(String(reason||'').slice(0,100));const b=Buffer.alloc(2+r.length);b.writeUInt16BE(c||1000,0);r.copy(b,2);this.s.write(frame(8,b))}catch(e){}try{this.s.end()}catch(e){}this.drop()}
-  drop(){if(!this.alive)return;this.alive=false;leaveRoom(this);partyLeave(this);unbind(this);conns.delete(this.id);perIp.set(this.ip,Math.max(0,(perIp.get(this.ip)||1)-1))}
+  drop(){if(!this.alive)return;this.alive=false;try{callLeave(this)}catch(e){}leaveRoom(this);partyLeave(this);unbind(this);conns.delete(this.id);perIp.set(this.ip,Math.max(0,(perIp.get(this.ip)||1)-1))}
   data(d){
     this.buf=Buffer.concat([this.buf,d]);
     for(;;){
@@ -261,7 +261,7 @@ function enter(c,room,p,req){
 }
 
 /* ---------- accounts, wallet, gifts ---------- */
-function unbind(c){const a=c.acct;if(!a)return;c.acct=null;if(online.get(a.key)===c){online.delete(a.key);presence(a.key)}}
+function unbind(c){const a=c.acct;if(!a)return;try{callLeave(c)}catch(e){}c.acct=null;if(online.get(a.key)===c){online.delete(a.key);presence(a.key)}}
 function banLeft(ms){const m=Math.max(1,Math.ceil(ms/60000));if(m<60)return m+' minute'+(m===1?'':'s');const h=Math.floor(m/60),r=m%60;if(h<48)return h+'h'+(r?' '+r+'m':'');return Math.ceil(h/24)+' days'}
 /* a ban no longer locks the account: you can sign in, but multiplayer rooms refuse you until it runs out */
 const BAN_CATS=['Cheating','Harassment','Inappropriate language','Scamming','Spam','Ban evasion','Other'],PERM=8.64e15;
@@ -332,7 +332,7 @@ function bind(c,a,req,token){
   if(old&&old!==c){old.send({t:'kicked',reason:'You signed in from another place.'});old.acct=null;online.delete(a.key);old.kill(1000,'signed in elsewhere')}
   c.acct=a;online.set(a.key,c);
   const o={t:'auth.ok',req,user:userView(a),friends:friendList(a),ledger:a.ledger.slice(-20)};if(token)o.token=token;
-  c.send(o);presence(a.key);
+  c.send(o);presence(a.key);try{gcSendList(c);callsFor(c)}catch(e){}
 }
 function newToken(a){const t=crypto.randomBytes(32).toString('hex');db.tokens[sha(t)]={k:a.key,exp:Date.now()+LIM.tokenDays*864e5};
   const now=Date.now();for(const h in db.tokens)if(db.tokens[h].exp<now)delete db.tokens[h];touch();return t}
@@ -529,6 +529,85 @@ function dmMsg(c,m){
   if(m.t==='dm.send'){let text=clean(m.text,300);for(const w of BAD)text=text.replace(new RegExp(w,'ig'),x=>'*'.repeat(x.length));if(!text)return;dmPush(a,o,{f:a.key,t:text,ts:now});return}
   if(m.t==='dm.invite'){const pa=c.party&&parties.get(c.party);if(!pa)return c.send({t:'notice',text:'Make a party first.'});dmPush(a,o,{f:a.key,t:'Join my party!',k:'party',code:pa.code,ts:now});return}
 }
+/* ---------- group chats: up to 12 friends, kept on the server like DMs ---------- */
+const GC_MAX=12,GC_KEEP=100,GC_PER=30;
+const gcName=k=>(db.accounts[k]||{}).name||k;
+function gcUnread(g,a){const seen=(g.seen&&g.seen[a.key])||0;let n=0;for(const x of g.m)if(x.ts>seen&&x.f&&x.f!==a.key)n++;return n}
+const gcView=(g,a)=>{const last=g.m[g.m.length-1];return{id:g.id,name:g.name,owner:gcName(g.owner),members:g.members.map(gcName),unread:gcUnread(g,a),
+  last:last?{f:last.f?gcName(last.f):'',t:last.k==='party'?'🎉 Party invite':last.t,ts:last.ts}:null,call:callOf('gc:'+g.id)?callInfo(callOf('gc:'+g.id)):null}};
+function gcLists(g){for(const k of g.members){const x=online.get(k);if(x&&x.acct)gcSendList(x)}}
+function gcSendList(c){const a=c.acct;if(!a)return;const list=Object.values(db.gc).filter(g=>g.members.includes(a.key)).map(g=>gcView(g,a)).sort((x,y)=>(y.last?y.last.ts:0)-(x.last?x.last.ts:0));c.send({t:'gc.list',list})}
+function gcPush(g,msg){g.m.push(msg);if(g.m.length>GC_KEEP)g.m.splice(0,g.m.length-GC_KEEP);g.at=msg.ts;if(msg.f)g.seen[msg.f]=msg.ts;touch();
+  const out={t:'gc.msg',id:g.id,m:{...msg,f:msg.f?gcName(msg.f):''}};for(const k of g.members){const x=online.get(k);if(x)x.send(out)}gcLists(g)}
+function gcMsg(c,m){
+  const a=c.acct;if(!a)return c.send({t:'notice',text:'Sign in to use group chats.'});
+  const now=Date.now(),reply=(ok,err,extra)=>c.send({t:'gc.res',req:m.req,ok,err,...extra});
+  if(m.t==='gc.list')return gcSendList(c);
+  if(m.t==='gc.create'){const name=clean(m.name,32)||'Group chat',names=Array.isArray(m.members)?m.members.slice(0,GC_MAX):[];
+    if(Object.values(db.gc).filter(g=>g.members.includes(a.key)).length>=GC_PER)return reply(false,'You are in too many group chats. Leave one first.');
+    const keys=[...new Set(names.map(n=>key(clean(n,24))))].filter(k=>k!==a.key&&db.accounts[k]&&a.friends[k]==='friend');
+    if(!keys.length)return reply(false,'Pick at least one friend.');
+    const g={id:crypto.randomBytes(5).toString('hex'),name,owner:a.key,members:[a.key,...keys].slice(0,GC_MAX),m:[],seen:{},at:now,created:now};db.gc[g.id]=g;
+    gcPush(g,{f:'',t:a.name+' made the group',k:'sys',ts:now});audit('group chat made',a.name,name+' ('+g.members.length+')');return reply(true,null,{id:g.id})}
+  const g=db.gc[String(m.id||'')];if(!g||!g.members.includes(a.key))return reply(false,'That group chat is gone.');
+  if(m.t==='gc.history'){g.seen[a.key]=now;touch();return c.send({t:'gc.history',id:g.id,msgs:g.m.map(x=>({...x,f:x.f?gcName(x.f):''}))})}
+  if(m.t==='gc.read'){g.seen[a.key]=now;touch();return gcSendList(c)}
+  if(m.t==='gc.leave'){g.members=g.members.filter(k=>k!==a.key);if(!g.members.length){delete db.gc[g.id];touch();return gcSendList(c)}
+    if(g.owner===a.key)g.owner=g.members[0];gcPush(g,{f:'',t:a.name+' left',k:'sys',ts:now});gcSendList(c);return reply(true)}
+  if(a.muted>now||c.muteUntil>now)return reply(false,'You are muted.');
+  c.gcT=(c.gcT||[]).filter(x=>now-x<10000);if(c.gcT.length>=8)return reply(false,'Slow down a little.');c.gcT.push(now);
+  if(m.t==='gc.send'){let text=clean(m.text,300);for(const w of BAD)text=text.replace(new RegExp(w,'ig'),x=>'*'.repeat(x.length));if(!text)return;gcPush(g,{f:a.key,t:text,ts:now});return}
+  if(m.t==='gc.invite'){const pa=c.party&&parties.get(c.party);if(!pa)return reply(false,'Make a party first.');gcPush(g,{f:a.key,t:'Join my party!',k:'party',code:pa.code,ts:now});return reply(true)}
+  if(m.t==='gc.add'){const o=db.accounts[key(clean(m.name,24))];if(!o||a.friends[o.key]!=='friend')return reply(false,'You can only add your friends.');
+    if(g.members.includes(o.key))return reply(false,o.name+' is already in the group.');if(g.members.length>=GC_MAX)return reply(false,'A group chat holds '+GC_MAX+' people.');
+    g.members.push(o.key);gcPush(g,{f:'',t:a.name+' added '+o.name,k:'sys',ts:now});return reply(true)}
+  if(m.t==='gc.rename'){const name=clean(m.name,32);if(!name)return reply(false,'Type a name.');g.name=name;gcPush(g,{f:'',t:a.name+' renamed the group to '+name,k:'sys',ts:now});return reply(true)}
+  if(m.t==='gc.kick'){if(g.owner!==a.key)return reply(false,'Only the group owner can remove people.');const o=db.accounts[key(clean(m.name,24))];if(!o||!g.members.includes(o.key)||o===a)return reply(false,'Not in this group.');
+    g.members=g.members.filter(k=>k!==o.key);gcPush(g,{f:'',t:a.name+' removed '+o.name,k:'sys',ts:now});const oc=online.get(o.key);if(oc)gcSendList(oc);return reply(true)}
+}
+/* ---------- calls: DM and group chat voice calls with screen sharing. The server rings people and passes connection
+   messages between them; voice and video go directly between the players (WebRTC), like the game voice chat. ---------- */
+const calls=new Map();
+const callOf=chat=>{for(const C of calls.values())if(C.chat===chat)return C;return null};
+function chatKeys(chat){if(chat.startsWith('dm:'))return chat.slice(3).split('|');const g=db.gc[chat.slice(3)];return g?g.members.slice():[]}
+function chatTitle(chat,forKey){if(chat.startsWith('dm:')){const k=chat.slice(3).split('|').find(x=>x!==forKey);return gcName(k)}const g=db.gc[chat.slice(3)];return g?g.name:'Call'}
+const callInfo=C=>({id:C.id,n:C.members.size,started:C.at});
+function callState(C){const members=[...C.members.values()].map(x=>({id:x.c.id,name:x.c.acct.name,muted:!!x.muted,share:!!x.share}));
+  for(const x of C.members.values())x.c.send({t:'call.state',id:C.id,chat:C.chat.startsWith('gc:')?{kind:'gc',id:C.chat.slice(3)}:{kind:'dm'},title:chatTitle(C.chat,x.c.acct.key),members,ring:[...C.ring].map(gcName),started:C.at,by:gcName(C.by)})}
+function callStatus(C,ended){for(const k of chatKeys(C.chat)){const x=online.get(k);if(x)x.send({t:'call.status',chat:C.chat.startsWith('gc:')?{kind:'gc',id:C.chat.slice(3)}:{kind:'dm',with:chatTitle(C.chat,k)},id:C.id,active:!ended,n:ended?0:C.members.size})}}
+function callEnd(C){calls.delete(C.id);clearTimeout(C.rt);for(const x of C.members.values()){x.c.call=null;x.c.send({t:'call.end',id:C.id})}for(const k of C.ring){const x=online.get(k);if(x)x.send({t:'call.ringend',id:C.id})}C.members.clear();callStatus(C,true)}
+function callLeave(c){const C=c.call&&calls.get(c.call);c.call=null;if(!C)return;C.members.delete(c.id);
+  for(const x of C.members.values())x.c.send({t:'call.left',id:C.id,peer:c.id});
+  if(!C.members.size||(C.chat.startsWith('dm:')&&C.members.size<2&&!C.ring.size))return callEnd(C);callState(C);callStatus(C)}
+function callJoin(c,C){if(c.call&&c.call!==C.id)callLeave(c);if(C.members.size>=GC_MAX)return c.send({t:'notice',text:'This call is full.'});
+  C.members.set(c.id,{c,muted:false,share:false});c.call=C.id;C.ring.delete(c.acct.key);
+  for(const x of C.members.values())if(x.c!==c)x.c.send({t:'call.joined',id:C.id,peer:c.id,name:c.acct.name});callState(C);callStatus(C)}
+function callMsg(c,m){
+  const a=c.acct;if(!a)return c.send({t:'notice',text:'Sign in to make calls.'});const now=Date.now();
+  if(m.t==='call.start'){let chat;
+    if(m.gc){const g=db.gc[String(m.gc)];if(!g||!g.members.includes(a.key))return;chat='gc:'+g.id}
+    else{const o=db.accounts[key(clean(m.dm,24))];if(!o||o===a||a.friends[o.key]!=='friend')return c.send({t:'notice',text:'You can only call friends.'});chat='dm:'+[a.key,o.key].sort().join('|')}
+    let C=callOf(chat);if(C)return callJoin(c,C);
+    C={id:'c'+crypto.randomBytes(5).toString('hex'),chat,by:a.key,at:now,members:new Map(),ring:new Set()};calls.set(C.id,C);
+    for(const k of chatKeys(chat))if(k!==a.key){const x=online.get(k);if(x){C.ring.add(k);x.send({t:'call.ring',id:C.id,from:a.name,title:chatTitle(chat,k),kind:chat.slice(0,2)})}}
+    C.rt=setTimeout(()=>{for(const k of C.ring){const x=online.get(k);if(x)x.send({t:'call.ringend',id:C.id})}C.ring.clear();if(calls.has(C.id)){if(C.chat.startsWith('dm:')&&C.members.size<2)callEnd(C);else callState(C)}},30000);
+    callJoin(c,C);if(!C.ring.size&&chat.startsWith('dm:'))c.send({t:'notice',text:chatTitle(chat,a.key)+' is offline. They will see the call if they come online in the next 30 seconds.'});return}
+  const C=calls.get(String(m.id||''));if(!C)return c.send({t:'call.end',id:m.id});
+  if(!chatKeys(C.chat).includes(a.key))return;
+  if(m.t==='call.join')return callJoin(c,C);
+  if(m.t==='call.decline'){C.ring.delete(a.key);for(const x of C.members.values())x.c.send({t:'call.declined',id:C.id,name:a.name});
+    if(C.chat.startsWith('dm:')&&C.members.size<2&&!C.ring.size)return callEnd(C);return callState(C)}
+  if(c.call!==C.id)return;
+  if(m.t==='call.leave')return callLeave(c);
+  if(m.t==='call.signal'){const to=C.members.get(String(m.to||''));if(!to||to.c===c)return;if(JSON.stringify(m.data||null).length>LIM.rpcMax)return;to.c.send({t:'call.signal',id:C.id,from:c.id,data:m.data});return}
+  const me=C.members.get(c.id);
+  if(m.t==='call.mute'){me.muted=!!m.muted;return callState(C)}
+  if(m.t==='call.share'){me.share=!!m.on;return callState(C)}
+  if(m.t==='call.ring'){   /* ring the people in the chat who are not in the call yet */
+    for(const k of chatKeys(C.chat)){if([...C.members.values()].some(x=>x.c.acct.key===k))continue;const x=online.get(k);if(x){C.ring.add(k);x.send({t:'call.ring',id:C.id,from:a.name,title:chatTitle(C.chat,k),kind:C.chat.slice(0,2)})}}
+    clearTimeout(C.rt);C.rt=setTimeout(()=>{for(const k of C.ring){const x=online.get(k);if(x)x.send({t:'call.ringend',id:C.id})}C.ring.clear();if(calls.has(C.id))callState(C)},30000);return callState(C)}
+}
+function callsFor(c){const a=c.acct;if(!a)return;for(const C of calls.values())if(chatKeys(C.chat).includes(a.key))c.send({t:'call.status',chat:C.chat.startsWith('gc:')?{kind:'gc',id:C.chat.slice(3)}:{kind:'dm',with:chatTitle(C.chat,a.key)},id:C.id,active:true,n:C.members.size})}
 /* ---------- the Wheel of Fortune event: the owner pulls everyone online into one room ---------- */
 let eventRoom=null;
 function eventInvite(x){if(eventRoom&&rooms.has(eventRoom.id)&&!eventRoom.members.has(x))x.send({t:'user.event',code:eventRoom.code,by:eventRoom.by})}
@@ -828,6 +907,8 @@ async function handle(c,m){
   if(t==='report')return reportMsg(c,m);
   if(t.startsWith('friend.'))return friendMsg(c,m);
   if(t.startsWith('dm.'))return dmMsg(c,m);
+  if(t.startsWith('gc.'))return gcMsg(c,m);
+  if(t.startsWith('call.'))return callMsg(c,m);
   if(t.startsWith('g.'))return globalMsg(c,m);
   if(t==='who'){c.send({t:'rooms',rooms:[...rooms.values()].filter(r=>!r.priv&&!r.locked).map(pub)});return}
   if(t.startsWith('world.')){worldMsg(c,m,t);return}
