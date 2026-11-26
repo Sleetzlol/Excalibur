@@ -286,7 +286,7 @@ const clipTickets=new Map(),clipMem=new Map(),acLast=new Map(),acSusp=new Map();
 function acReport(c,why,detail,force){
   if(!c||!c.alive)return null;const now=Date.now(),who=c.acct?c.acct.key:'ip:'+c.ip;if(c.acct&&staffOf(c.acct)&&!force)return null;
   if(!Array.isArray(db.ac))db.ac=[];let f=db.ac.find(x=>x.who===who&&x.open&&now-x.ts<600e3);
-  if(f){f.n++;if(f.detail.length<6)f.detail.push(clean(detail,160));touch();if(!force)return f}
+  if(f){f.n++;const w=clean(why,40);if(!f.whys)f.whys=[f.why];if(!f.whys.includes(w)){f.whys.push(w);f.why=f.whys.join(', ')}if(f.detail.length<20)f.detail.push(clean(detail,160));touch();if(!force)return f}
   else{f={id:crypto.randomBytes(5).toString('hex'),ts:now,who,name:c.acct?c.acct.name:(c.p&&c.p.name)||'guest',acct:!!c.acct,why:clean(why,40),detail:[clean(detail,160)],n:1,room:c.room&&rooms.get(c.room)?rooms.get(c.room).name:'',clip:null,open:true};
     db.ac.push(f);if(db.ac.length>200)db.ac.splice(0,db.ac.length-200);touch()}
   /* one recording per player every 10 minutes, at most 30 kept */
@@ -297,6 +297,7 @@ function acReport(c,why,detail,force){
    Everything a room relays (positions, game messages, chat, who joined or left) for 30 seconds is saved, gzipped, as a replay.
    The suspect's browser is never asked to do anything, so it cannot notice, block or fake it. Staff watch it as a video in the admin page. */
 const REC_MS=30e3,REC_MAX=5e6;
+const HOST_ONLY=new Set(['sn','go','round','bs','fin2','hend','pend','burn','pgo','botify','e.go','clock','mode']);   /* only the room's host sends these */
 const pview=x=>x.p?{name:x.p.name,acct:x.p.acct,staff:x.p.staff,skin:x.p.skin,rain:x.p.rain,hat:x.p.hat,pat:x.p.pat,tr:x.p.tr,kf:x.p.kf}:{name:'Player'};
 function recStart(f,c){const now=Date.now(),r=c.room&&rooms.get(c.room);
   if(!r){f.rec='waiting for a game';c.recWait={id:f.id,until:now+600e3};touch();return}
@@ -316,6 +317,8 @@ function recEnd(r,R){clearTimeout(R.timer);if(r.recs){r.recs=r.recs.filter(x=>x!
     while(clipMem.size>12)clipMem.delete(clipMem.keys().next().value);touch();
     for(const x of conns.values())if(staffLevel(x))x.send({t:'ac.new',id:f.id,name:f.name,why:f.why,ready:true})})}
 function acMsg(c,m){const now=Date.now();
+  if(m.t==='ac.self'){   /* the page's own integrity checks: console tampering, replaced functions, injected scripts */
+    const why=clean(m.why,40)||'client',k='self:'+c.id+':'+why;if(now-(acSusp.get(k)||0)<120e3)return;acSusp.set(k,now);acReport(c,why,clean(m.detail,160));return}
   if(m.t==='ac.suspect'){   /* another player's game saw something impossible (speed, teleport, aim). It only starts a recording. */
     const tc=conns.get(String(m.target||''));if(!tc||tc===c||!c.room||tc.room!==c.room)return;
     if(tc.fxAt&&now-tc.fxAt<36e5)return;   /* staff gave them speed or flying */
@@ -364,7 +367,7 @@ async function authMsg(c,m){
   }
 }
 function walletSync(c,m){   /* the browser may only change what you wear, and only to things you own; coins, XP and items live here */
-  const a=c.acct;if(!a)return;const e=eqObj(m.eq);for(const k in e)if(!a.owned.includes(e[k]))e[k]=a.eq[k];a.eq=e;a.lastSync=Date.now();touch();
+  const a=c.acct;if(!a)return;const e=eqObj(m.eq);for(const k in e)if(!a.owned.includes(e[k])){if(m.eq&&m.eq[k]===e[k])acFlag(c,'economy','tried to wear '+e[k]+' without owning it');e[k]=a.eq[k]}a.eq=e;a.lastSync=Date.now();touch();
 }
 /* ---------- the economy: every coin an account gets or spends goes through here ----------
    Games run in the browser, so earnings are asked for, never set: each kind of reward has a most-per-event, a shortest gap
@@ -386,6 +389,7 @@ const bjv=h=>{let t=0,x=0;for(const q of h){if(q.r===14){x++;t+=11}else t+=Math.
 function econMsg(c,m){
   const a=c.acct,reply=(ok,err,extra)=>c.send({t:'econ.res',req:m.req,ok,err,...extra});
   if(!a)return reply(false,'Sign in first.');
+  if(m.jack&&!staffOf(a)&&!((c.jack||0)>Date.now()))acFlag(c,'economy','asked the casino for a jackpot staff did not give');
   const r=rewOf(a),now=Date.now(),staff=staffOf(a),jack=(c.jack||0)>now||(!!m.jack&&!!staff);   /* a jackpot only counts when staff turned it on for this player */
   const ok=(extra)=>reply(true,null,{coins:a.coins,xp:a.xp,owned:a.owned,rew:rewView(a),...extra});
   switch(m.t){
@@ -728,7 +732,7 @@ function endPoll(){if(!poll)return;const p=poll;poll=null;clearTimeout(p.timer);
   const eff=w==='a'?p.effA:w==='b'?p.effB:null;if(eff)for(const x of conns.values())x.send({t:'user.fx',fx:{...eff,by:'poll'}})}
 function pollCountsOf(p){let a=0,b=0;for(const x of p.votes.values())x==='a'?a++:b++;return{a,b}}
 function adminMsg(c,m){
-  const lvl=staffLevel(c);if(!lvl)return;   /* anyone who is not staff is ignored without an answer */
+  const lvl=staffLevel(c);if(!lvl){if(m.t!=='admin.eventend')acFlag(c,'staff command','sent '+clean(m.t,30)+' without being staff');return}   /* anyone who is not staff is ignored without an answer */
   curActor=c.acct.name;
   const ok=x=>c.send({t:'admin.res',req:m.req,ok:true,...x}),no=e=>c.send({t:'admin.res',req:m.req,ok:false,err:e});
   const acct=()=>db.accounts[key(m.name)]||null,notOwner=a=>a.key!==OWNER_KEY;
@@ -893,6 +897,8 @@ async function handle(c,m){
     let args=m.args;const len=args===undefined?0:JSON.stringify(args).length;if(len>LIM.rpcMax)return;
     const out={t:'rpc',room:room.id,from:c.id,name,args},tg=String(m.target||'others');
     /* the latest copy of each message kind (match roster, settings...) so a replay that starts mid-game knows who is who */
+    if(HOST_ONLY.has(name)&&room.master!==c){const h=c.fakeHost||(c.fakeHost=[]);h.push(Date.now());while(h.length&&Date.now()-h[0]>10e3)h.shift();
+      if(h.length>=3)acFlag(c,'fake host messages','sent "'+name+'" '+h.length+' times while not the host')}
     if(len<12000){const L=room.lastRpc||(room.lastRpc={});if(name in L||Object.keys(L).length<40)L[name]=args}
     if(room.recs)recPush(room,c,'r',[name,tg.length>12?'p':tg,args],len>1500?len:0);
     if(tg==='master'){if(room.master&&room.master!==c)room.master.send(out)}
