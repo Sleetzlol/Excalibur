@@ -633,6 +633,11 @@ header{background:rgba(6,10,30,.35);backdrop-filter:blur(12px)}
 /* someone else's pointer while they control your game */
 .rcur{position:fixed;left:0;top:0;z-index:9700;pointer-events:none;width:14px;height:14px;margin:-2px 0 0 -2px;border-left:3px solid #f2b84b;border-top:3px solid #f2b84b;transform-origin:0 0}
 .rcur span{position:absolute;left:12px;top:10px;background:#f2b84b;color:#201500;font:700 11px var(--body);padding:1px 6px;border-radius:6px;white-space:nowrap}
+
+.dgprev{display:flex;align-items:center;gap:14px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 16px;margin:6px 0 10px;width:max-content;max-width:100%}
+.dgprev canvas{width:74px;height:74px}
+.dgname{display:flex;align-items:center;gap:6px;font:700 16px var(--head)}
+.dgbot{background:#2f6fb5;color:#fff;font:800 10px var(--body);padding:2px 6px;border-radius:7px}
 /* ban page: a banned account can sign in, but sees only this */
 .banpage{position:fixed;inset:0;z-index:9000;background:radial-gradient(ellipse at top,#2a1220,#0b0d16 70%);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
 .banpage .bcard{width:100%;max-width:520px;background:#141827;border:1px solid #3a2232;border-radius:18px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
@@ -1023,8 +1028,8 @@ function mpRoom(g,box,win,kind,onStart,solo){
   let s=null,secs=30,total=30,dead=false,inner=null,tm=0,hard=kind==='parkour'&&store.get('pkhard',false);
   if(kind==='parkour')room.insertBefore(pkModeBox(()=>hard,v=>{hard=v;store.set('pkhard',v);if(s&&s.isMaster())s.rpc('mode',{hard:v},'others')},()=>!s||s.isMaster()),clock);
   const hum=()=>{
-    const a=[{pid:NET.id,name:user,...myLook(),acct:signedIn,pt:PARTY.cur&&PARTY.cur.tag||''}];
-    if(s)for(const p of s.players.values())a.push({pid:p.id,name:p.name,skin:p.skin,rain:!!p.rain,hat:p.hat,pat:p.pat||'',tr:p.tr||'t_none',kf:p.kf||'k_none',acct:!!p.acct,pt:p.pt||''});
+    const a=[{pid:NET.id,name:DISG.bot?DISG.bot.name:user,...myLook(),acct:signedIn&&!DISG.bot,pt:DISG.bot?'':PARTY.cur&&PARTY.cur.tag||'',fb:!!DISG.bot}];
+    if(s)for(const p of s.players.values())a.push({pid:p.id,name:p.name,skin:p.skin,rain:!!p.rain,hat:p.hat,pat:p.pat||'',tr:p.tr||'t_none',kf:p.kf||'k_none',acct:!!p.acct,pt:p.pt||'',fb:!!p.bot});
     const m=s&&s.masterId;a.sort((x,y)=>(y.pid===m)-(x.pid===m));return a;
   };
   function draw(){
@@ -2441,7 +2446,7 @@ let eq=store.get('eq',{skin:'s_blue',hat:'h_cap',trail:'t_none',kill:'k_none'});
 const saveCos=()=>{store.set('owned',owned);store.set('eq',eq);ACCHOOK.dirty()};
 /* everything other players need to draw you: sent with your profile into every room and match */
 const PATS=new Set(['metal','glow','stars','camo','tiger','carbon','marble','lava','galaxy','circuit']);
-function myLook(){const s=cosOf(eq.skin);return{skin:s.c||'#4f8cff',rain:isRainbow(eq.skin),hat:eq.hat,pat:s.pat||'',tr:eq.trail||'t_none',kf:eq.kill||'k_none'}}
+function myLook(){if(DISG.bot&&DISG.bot.look){const L=DISG.bot.look;return{skin:L.skin,rain:!!L.rain,hat:L.hat,pat:L.pat||'',tr:L.tr||'t_none',kf:L.kf||'k_none'}}const s=cosOf(eq.skin);return{skin:s.c||'#4f8cff',rain:isRainbow(eq.skin),hat:eq.hat,pat:s.pat||'',tr:eq.trail||'t_none',kf:eq.kill||'k_none'}}
 function hex2rgb(h){h=typeof h==='string'&&h[0]==='#'?h:'#4f8cff';const n=parseInt(h.slice(1),16)||0;return[n>>16,n>>8&255,n&255]}
 function shade(h,a){const[n1,n2,n3]=hex2rgb(h),f=v=>Math.round(a<0?v*(1+a):v+(255-v)*a);
   return`rgb(${f(n1)},${f(n2)},${f(n3)})`}
@@ -3071,7 +3076,7 @@ function arenaGame(box,win,opts){
   const seed=(MP?MP.seed:PAINT?opts.seed:Math.floor(Math.random()*2e9))+1,rn=mulberry(seed^0x9e3779b9),ri=(a,b)=>a+Math.floor(rn()*(b-a+1));
   const roster=MP?MP.roster:soloRoster(MODE,opts.pool||[]);
   const EV=opts.ev||null;
-  const defs=roster.map((r,i)=>({id:i,pid:r.pid||null,name:r.name,hat:r.hat||'h_none',skin:r.skin||'#4f8cff',rain:!!r.rain,pat:r.pat||'',tr:r.tr||'t_none',kf:r.kf||'k_none',pt:r.pt||'',bot:!!r.bot,team:r.team||0,skill:r.skill||.7,me:!!r.me,ghost:!!r.ghost,perfect:!!r.perfect}));
+  const defs=roster.map((r,i)=>({id:i,pid:r.pid||null,name:r.name,hat:r.hat||'h_none',skin:r.skin||'#4f8cff',rain:!!r.rain,pat:r.pat||'',tr:r.tr||'t_none',kf:r.kf||'k_none',pt:r.pt||'',bot:!!r.bot,team:r.team||0,skill:r.skill||.7,me:!!r.me,ghost:!!r.ghost,perfect:!!r.perfect,fb:!!r.fb}));
   /* Battle Royale: friends who came in the same party fight as one team; everyone else is on their own */
   const BRT=MODE==='br'&&(()=>{const g=new Map();let n=0,teams=false;for(const d of defs){if(d.pt&&!d.bot){if(!g.has(d.pt))g.set(d.pt,[]);g.get(d.pt).push(d)}}
     for(const d of defs)d.team=100+(n++);for(const[,list]of g)if(list.length>1){teams=true;const id=list[0].team;list.forEach(d=>{d.team=id})}return teams})();
@@ -3082,7 +3087,7 @@ function arenaGame(box,win,opts){
   const addFeed=(txt,c)=>{feed.push({t:5,txt,c:c||'#fff'});if(feed.length>6)feed.shift()};
   const say=(txt,s)=>{banner={txt,t:s||2.5}};
   const ev=(...a)=>{if(MP&&HOST)evq.push(a)};
-  const mkF=d=>({id:d.id,pid:d.pid,name:d.name,skin:d.skin,rain:d.rain,pat:d.pat,tr:d.tr,kf:d.kf,pt:d.pt,ghost:d.ghost,perfect:!!d.perfect,bot:d.bot,team:d.team,skill:d.skill,x:0,y:0,tx:0,ty:0,vx:0,vy:0,a:0,ta:0,r:PR,hp:100,sh:0,alive:true,st:'ground',z:0,
+  const mkF=d=>({fb:!!d.fb,id:d.id,pid:d.pid,name:d.name,skin:d.skin,rain:d.rain,pat:d.pat,tr:d.tr,kf:d.kf,pt:d.pt,ghost:d.ghost,perfect:!!d.perfect,bot:d.bot,team:d.team,skill:d.skill,x:0,y:0,tx:0,ty:0,vx:0,vy:0,a:0,ta:0,r:PR,hp:100,sh:0,alive:true,st:'ground',z:0,
     g:[null,null,null,null],cur:0,am:{light:0,med:0,shell:0,heavy:0},cd:0,rl:0,inp:{mx:0,my:0,a:0,f:0,r:0,u:0,s:-1,j:0},k:0,car:-1,resp:0,inv:0,lastHit:-99,lastBy:-1,ai:null,usec:0,place:0,sz:1,spdm:1});
   const startGun=f=>{f.g=[{t:'pistol',tr:0,m:12},null,null,null];f.am={light:24,med:0,shell:0,heavy:0};f.cur=0};
   const meF=()=>byId.get(meDef.id);
@@ -3670,7 +3675,7 @@ function arenaGame(box,win,opts){
     if(dir!==1)gun();
     if(f.car>=0){const col=f.car?'#4f8cff':'#ff4a4a',fy=feet-62*sz;cx.fillStyle='#ddd';cx.fillRect(f.x-1,fy-36,3,38);cx.fillStyle=col;cx.beginPath();cx.moveTo(f.x+2,fy-36);cx.lineTo(f.x+28,fy-28);cx.lineTo(f.x+2,fy-20);cx.fill()}
     const me=f.id===meDef.id;cx.textAlign='center';cx.font='700 12px DM Sans,sans-serif';const ny=feet-56*sz-(f.car>=0?0:0);
-    const w=cx.measureText(f.name).width+12;cx.fillStyle='rgba(10,16,44,.7)';rrp(cx,f.x-w/2,ny-12,w,17,8);cx.fill();cx.fillStyle=f.bot?'#7fc4ff':me?'#ffe28a':(BRT&&meF()&&f.team===meF().team)?'#7dffa8':'#fff';cx.fillText(f.name,f.x,ny+1);if(f.bot&&!f.perfect&&f.skill!=null){const tw=cx.measureText(f.name).width/2+8;cx.fillStyle=BOT_TIERS[botTier(f.skill)][1];cx.beginPath();cx.arc(f.x-tw,ny-3,3.6,0,TAU);cx.fill()}
+    const w=cx.measureText(f.name).width+12;cx.fillStyle='rgba(10,16,44,.7)';rrp(cx,f.x-w/2,ny-12,w,17,8);cx.fill();cx.fillStyle=(f.bot||f.fb)?'#7fc4ff':me?'#ffe28a':(BRT&&meF()&&f.team===meF().team)?'#7dffa8':'#fff';cx.fillText(f.name,f.x,ny+1);if(f.bot&&!f.perfect&&f.skill!=null){const tw=cx.measureText(f.name).width/2+8;cx.fillStyle=BOT_TIERS[botTier(f.skill)][1];cx.beginPath();cx.arc(f.x-tw,ny-3,3.6,0,TAU);cx.fill()}
     if(!me&&!(PL&&PL.noHp)){cx.fillStyle='rgba(0,0,0,.55)';cx.fillRect(f.x-22,ny+6,44,5);cx.fillStyle=f.hp>50?'#58d36b':f.hp>25?'#f2b84b':'#e24b4b';cx.fillRect(f.x-22,ny+6,44*Math.max(0,f.hp)/100,5);if(f.sh>0){cx.fillStyle='#4fa8ff';cx.fillRect(f.x-22,ny+6,44*Math.min(1,f.sh/100),2)}}
   }
   function drawMini(){
@@ -4238,7 +4243,7 @@ function parkourGame(box,win,opts){
   let self=mkR(user,false,cosOf(eq.skin).c,eq.hat,isRainbow(eq.skin),1);self.pat=myLook().pat;self.tr=eq.trail;if(!MP)runners.push(self);
   const fxOf=n=>{AUD.sfx(n==='jump'?'jump':n==='land'?'land':'bounce')};self.fx=fxOf;
   if(MP){MP.roster.forEach((r,i)=>{const mine=r.pid===NET.id,u=mine?self:mkR(r.name,!!r.bot,r.skin,r.hat,r.rain,r.skill||.75);
-    u.pat=r.pat||'';u.tr=r.tr||'t_none';if(mine){u.name=r.name;u.skin=r.skin;u.hat=r.hat;u.rain=!!r.rain}if(r.ghost){u.elim=true;u.ghost=true}u.id=i;u.pid=r.pid||null;u.remote=!!r.pid&&!mine;runners.push(u)});self.fx=fxOf}
+    u.pat=r.pat||'';u.tr=r.tr||'t_none';if(mine){u.name=r.name;u.skin=r.skin;u.hat=r.hat;u.rain=!!r.rain}if(r.ghost){u.elim=true;u.ghost=true}u.id=i;u.pid=r.pid||null;u.fb=!!r.fb;u.remote=!!r.pid&&!mine;runners.push(u)});self.fx=fxOf}
   if(!MP){let pi=0,bi=0,gd=0;const used=new Set([user]);
     const nextC=()=>{if(opts.pool&&opts.pool[pi])return opts.pool[pi++];let c=botCos(++bi);while(used.has(c.name)&&gd++<400)c=botCos(++bi);used.add(c.name);return c};
     const SK=[.97,.9,.82,.74,.66,.58,.5].sort(()=>rnd()-.5);
@@ -4610,7 +4615,7 @@ function parkourGame(box,win,opts){
   addEventListener('keydown',kd);addEventListener('keyup',ku);addEventListener('blur',bl);cv.addEventListener('pointerdown',onDown);
 
   /* ---------- drawing ---------- */
-  const nameCol=u=>u.bot?'#6fb8ff':'#ffffff';
+  const nameCol=u=>(u.bot||u.fb)?'#6fb8ff':'#ffffff';
   const THEMES=[
     {n:'Volcano Dusk',sky:['#1a1448','#5a2a86','#f0683f'],far:'#2b1a52',near:'#3b2166',kind:'mount',stars:1,sea:['#ffb347','#ff5a1f','#7a1208']},
     {n:'Midnight Aurora',sky:['#04122e','#0b3a5e','#1e7a74'],far:'#0b2a4a',near:'#0f3d63',kind:'mount',stars:1,aurora:1,sea:['#7dffb0','#1fb86a','#0a4a30']},
@@ -4788,10 +4793,10 @@ function parkourGame(box,win,opts){
     cx.save();cx.globalAlpha=u.fin?.55:blink?.45:1;cx.translate(u.x,u.y);cx.scale(1-sq,1+sq);cx.translate(-u.x,-u.y);
     (LOW>=2&&u!==self?liteAvatar:drawAvatar)(cx,u.x,u.y,{skin:u.skin,rainbow:u.rain,hat:u.hat,pat:u.pat,dir:u.face>0?3:2,moving:u.og&&Math.abs(u.vx)>20,walk:u.walk,t,s:.85});cx.restore();
     if(LOW>=2&&u!==self){cx.font='700 11px DM Sans,sans-serif';cx.textAlign='center';cx.fillStyle=nameCol(u);cx.fillText(u.name,u.x,u.y-55);return}
-    cx.font='700 11px DM Sans,sans-serif';cx.textAlign='center';const w=cx.measureText(u.name).width+12+(u.bot?24:0);
+    const ub=u.bot||u.fb;cx.font='700 11px DM Sans,sans-serif';cx.textAlign='center';const w=cx.measureText(u.name).width+12+(ub?24:0);
     rrp(cx,u.x-w/2,u.y-66,w,15,7);cx.fillStyle=u===self?'rgba(242,184,75,.9)':'rgba(6,10,30,.75)';cx.fill();
-    if(u.bot){cx.fillStyle='#2f6fb5';rrp(cx,u.x-w/2+3,u.y-64,20,11,5);cx.fill();cx.fillStyle='#fff';cx.font='800 8px DM Sans,sans-serif';cx.fillText('BOT',u.x-w/2+13,u.y-55.5);cx.font='700 11px DM Sans,sans-serif'}
-    cx.fillStyle=u===self?'#201500':nameCol(u);cx.fillText(u.name,u.x+(u.bot?12:0),u.y-55);
+    if(ub){cx.fillStyle='#2f6fb5';rrp(cx,u.x-w/2+3,u.y-64,20,11,5);cx.fill();cx.fillStyle='#fff';cx.font='800 8px DM Sans,sans-serif';cx.fillText('BOT',u.x-w/2+13,u.y-55.5);cx.font='700 11px DM Sans,sans-serif'}
+    cx.fillStyle=u===self?'#201500':nameCol(u);cx.fillText(u.name,u.x+(ub?12:0),u.y-55);
   }
   function drawWorld(t){
     const x0=cam.x-90,x1=cam.x+VW+90;
@@ -5184,7 +5189,7 @@ function casinoGame(box,win,opts){
     if(eq.trail&&eq.trail!=='t_none')CTRL.feed('me',P.x,P.y+8,eq.trail,P.moving,P.t);if(sess)for(const q of sess.players.values())if(q.tr&&q.tr!=='t_none'&&q.x!=null)CTRL.feed(q.id,q.x,q.y+8,q.tr,!!q.mv,P.t);CTRL.step(1/60);CTRL.draw(cx);
     if(sess)NETUI.people(cx,sess,P.t,12,-62);
     drawAvatar(cx,P.x,P.y+12,{...(()=>{const L=myLook();return{skin:L.skin,rainbow:L.rain,hat:L.hat,pat:L.pat}})(),dir:P.dir,moving:P.moving,walk:P.walk,t:P.t,s:1});
-    cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const SL=selfLabel(),w=cx.measureText(SL).width+20;rr(cx,P.x-w/2,P.y-62,w,20,10);cx.fillStyle='rgba(2,6,24,.78)';cx.fill();cx.strokeStyle='#f2b84b';cx.lineWidth=1.5;cx.stroke();if(signedStaff)rbText(cx,SL,P.x,P.y-47);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,P.y-47)}if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,P.y-68,sess.me.bubble);
+    if(DISG.bot)selfTagBot(cx,P.x,P.y-62);else{cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const SL=selfLabel(),w=cx.measureText(SL).width+20;rr(cx,P.x-w/2,P.y-62,w,20,10);cx.fillStyle='rgba(2,6,24,.78)';cx.fill();cx.strokeStyle='#f2b84b';cx.lineWidth=1.5;cx.stroke();if(shownSelfStaff())rbText(cx,SL,P.x,P.y-47);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,P.y-47)}}if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,P.y-68,sess.me.bubble);
     cx.restore();
     const vg=cx.createRadialGradient(VW/2,VH/2,VH*.4,VW/2,VH/2,VW*.62);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,.45)');cx.fillStyle=vg;cx.fillRect(0,0,VW,VH);
     cx.textAlign='center';
@@ -5451,7 +5456,13 @@ function rbText(cx,txt,x,y){
   cx.textAlign=al;
 }
 const staffMark=st=>st==='owner'?'👑 ':st==='admin'?'⭐ ':'';
-const selfLabel=()=>staffMark(signedStaff)+(signedIn?'✓ ':'')+user;
+/* staff disguise (set in Admin > Disguise): hide the rainbow name, or look like a bot */
+let DISG={rb:true,bot:null};
+const setDisg=d=>{DISG=d&&typeof d==='object'?{rb:d.rb!==false,bot:d.bot||null}:{rb:true,bot:null}};
+const shownSelfStaff=()=>DISG.bot||!DISG.rb?'':signedStaff;
+const selfLabel=()=>DISG.bot?DISG.bot.name:staffMark(shownSelfStaff())+(signedIn?'✓ ':'')+user;
+/* your own name tag; while disguised it is drawn exactly like a bot's */
+function selfTagBot(cx,x,y){NETUI.tag(cx,{name:DISG.bot.name,bot:true},x,y)}
 
 /* ---------- Rooms and networking ----------
    Online: the page opens a WebSocket to its own server (wss://this-host/ws), or to a server you set with
@@ -5538,11 +5549,12 @@ const NET=(()=>{
       const now=Date.now();let c=false;for(const[k,p]of this.players)if(now-p.seen>9000){this.players.delete(k);c=true}if(c)this.changed();
     }
     changed(){this.sync();if(this.onChange)this.onChange()}
-    add(p){const old=this.players.get(p.id);this.players.set(p.id,{...(old||{x:0,y:0,tx:0,ty:0,dir:0,mv:false,wk:0,bubble:'',bt:0,init:false}),...p,seen:Date.now(),bot:false});if(!old)this.changed()}
+    add(p){const old=this.players.get(p.id);this.players.set(p.id,{...(old||{x:0,y:0,tx:0,ty:0,dir:0,mv:false,wk:0,bubble:'',bt:0,init:false}),...p,seen:Date.now(),bot:online&&!!p.bot});if(!old)this.changed()}
     recv(m){
       const now=Date.now();
       if(m.t==='join'){this.add(m.p);if(!online){send({t:'here',room:this.room.id,to:m.p.id,p:me()});this.announce()}if(this.onJoin)this.onJoin(m.p)}
       else if(m.t==='here'){if(m.to===id)this.add(m.p)}
+      else if(m.t==='pupd'){if(m.p&&m.p.id!==id){const q=this.players.get(m.p.id);if(q){Object.assign(q,m.p,{bot:!!m.p.bot});this.changed()}}}
       else if(m.t==='roster'){if(m.meta)Object.assign(this.room,m.meta);this.masterId=m.master||null;for(const p of m.players)this.add(p);this.changed()}
       else if(m.t==='master'){this.masterId=m.id;if(this.onMaster)this.onMaster()}
       else if(m.t==='rpc'){const tg=m.target;if(tg){if(tg==='master'&&!this.isMaster())return;if(tg!=='others'&&tg!=='all'&&tg!=='master'&&tg!==id)return}this.dispatch(m.from,m.name,m.args)}
@@ -5594,7 +5606,7 @@ const NET=(()=>{
     sock.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(x){return}
       if(m.t==='welcome'){id=m.id;if(Array.isArray(m.ice)&&m.ice.length)ice=m.ice;online=true;connecting=false;retry=0;ACC.config(m);readyRes();for(const s of sessions)s.rejoin();ACC.onWelcome();return}
       if(typeof m.t==='string'&&m.t.indexOf('world.')===0){try{WNET.msg(m)}catch(err){console.error('world message',err)}return}
-      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm|econ|appeal|ac|gc|call)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
+      if(/^(auth|friend|gift|wallet|g|email|reset|user|report|admin|acct|dm|econ|appeal|ac|gc|call|spawn)\./.test(m.t)||m.t==='friends'||m.t==='kicked'){try{ACC.msg(m)}catch(err){console.error('could not handle server message',m.t,err)}return}
       receive(m)};
     sock.onclose=()=>{clearTimeout(to);const was=online;online=false;connecting=false;if(ws===sock)ws=null;readyRes();if(was){for(const s of sessions)s.connLost();ACC.onClose()}
       clearTimeout(rtimer);rtimer=setTimeout(connect,Math.min(30000,2000*(++retry)))};
@@ -6187,6 +6199,7 @@ function lobbyGame(box,win,opts){
   const clouds=Array.from({length:14},()=>({x:rnd()*2400-200,y:rnd()*1700-150,s:.6+rnd()*1.2,v:4+rnd()*8}));
   const HTRL=mkTrails();
   const fxItems=[],abots=[],hp={x:0,y:0};let spT=0,rainT=0,holdP=false;const PM={x:1000,y:930};
+  SPAWN.add=m=>{for(const q of m.items||[])fxItems.push(m.mode==='hold'?{sid:q[0],x:q[1],y:q[2],gift:!!q[3],on:true,h:Math.random()*360|0,follow:1,age:0,life:25,vx:0,vy:0}:{sid:q[0],x:q[1],y:q[2],gift:!!q[3],on:true,h:Math.random()*360|0,follow:0,age:0,life:14,vx:(Math.random()-.5)*30,vy:170+Math.random()*150})};
   const hitF=(x,y)=>x<30||y<30||x>WW-30||y>WH-30;
   if(!PAINT)ADM.hooks.bots=n=>{abots.length=0;for(let i=0;i<n;i++){const c=botCos(5000+Math.floor(Math.random()*9000)+i);let x,y,g=0;do{x=300+Math.random()*1400;y=480+Math.random()*700}while(hit(x,y)&&g++<80);
     abots.push({name:c.name,skin:c.skin,hat:c.hat,x,y,tx:x,ty:y,dir:0,wk:0,mv:false,bot:true,t:Math.random()*3})}};
@@ -6418,7 +6431,7 @@ function lobbyGame(box,win,opts){
     const lift=STF.fly?34+Math.sin(P.t*3)*4:0;if(lift)shadow(P.x,P.y,16*STF.size,5);
     drawAvatar(cx,P.x,P.y-lift,{...(()=>{const L=myLook();return{skin:L.skin,rainbow:L.rain,hat:L.hat,pat:L.pat}})(),dir:P.dir,walk:P.walk,moving:P.moving,t:P.t,s:STF.size});
     cx.font='700 13px DM Sans,sans-serif';cx.textAlign='center';const SL=selfLabel(),w=cx.measureText(SL).width+20,ty=P.y-78*Math.max(.6,STF.size)-lift;
-    pill(P.x-w/2,ty,w,20);cx.fillStyle='rgba(10,16,44,.75)';cx.fill();if(signedStaff)rbText(cx,SL,P.x,ty+14);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,ty+14)}
+    if(DISG.bot)selfTagBot(cx,P.x,ty);else{pill(P.x-w/2,ty,w,20);cx.fillStyle='rgba(10,16,44,.75)';cx.fill();if(shownSelfStaff())rbText(cx,SL,P.x,ty+14);else{cx.fillStyle='#fff';cx.fillText(SL,P.x,ty+14)}}
     if(sess&&sess.me.bt>0)NETUI.bubble(cx,P.x,ty-6,sess.me.bubble);
   }
   function draw(){
@@ -6491,11 +6504,15 @@ function lobbyGame(box,win,opts){
       }
     }
     /* staff effects: items that spawn where you hold the mouse, rain, roaming bots */
-    if(holdP&&STF.spawn){spT-=dt;while(spT<=0){spT+=.05;const g=STF.spawn==='both'?Math.random()<.5:STF.spawn==='gift';fxItems.push({x:hp.x+(Math.random()-.5)*34,y:hp.y+(Math.random()-.5)*34,gift:g,on:true,h:Math.random()*360|0,follow:1,age:0,life:25,vx:0,vy:0})}}
-    if(ADM.rain>Date.now()){rainT-=dt;while(rainT<=0){rainT+=.09;fxItems.push({x:cam.x+Math.random()*VW,y:cam.y-30,gift:Math.random()<.4,on:true,h:Math.random()*360|0,follow:0,age:0,life:14,vx:(Math.random()-.5)*30,vy:170+Math.random()*150})}}
+    const srvSp=ECON.acct&&sess&&!sess.offline&&NET.online();   /* signed in: the server makes the items and pays for them */
+    if(srvSp){if(holdP&&STF.spawn){spT-=dt;if(spT<=0){spT=.1;NET.sendRaw({t:'spawn.req',mode:'hold',x:Math.round(hp.x),y:Math.round(hp.y)})}}
+      if(ADM.rain>Date.now()){rainT-=dt;if(rainT<=0){rainT=.45;NET.sendRaw({t:'spawn.req',mode:'rain',x:Math.round(cam.x),y:Math.round(cam.y-30),w:Math.round(VW)})}}
+      if(SPAWN.take.length&&performance.now()-SPAWN.sent>150){NET.sendRaw({t:'spawn.take',ids:SPAWN.take.splice(0,60)});SPAWN.sent=performance.now()}}
+    else if(holdP&&STF.spawn){spT-=dt;while(spT<=0){spT+=.05;const g=STF.spawn==='both'?Math.random()<.5:STF.spawn==='gift';fxItems.push({x:hp.x+(Math.random()-.5)*34,y:hp.y+(Math.random()-.5)*34,gift:g,on:true,h:Math.random()*360|0,follow:1,age:0,life:25,vx:0,vy:0})}}
+    if(!srvSp&&ADM.rain>Date.now()){rainT-=dt;while(rainT<=0){rainT+=.09;fxItems.push({x:cam.x+Math.random()*VW,y:cam.y-30,gift:Math.random()<.4,on:true,h:Math.random()*360|0,follow:0,age:0,life:14,vx:(Math.random()-.5)*30,vy:170+Math.random()*150})}}
     for(let i=fxItems.length-1;i>=0;i--){const o=fxItems[i];o.age+=dt;o.life-=dt;
       if(o.follow){const ex=P.x-o.x,ey=P.y-10-o.y,d=Math.hypot(ex,ey)||1,sp=Math.min(560,50+o.age*520);o.x+=ex/d*sp*dt;o.y+=ey/d*sp*dt}else{o.x+=o.vx*dt;o.y+=o.vy*dt}
-      if(Math.hypot(P.x-o.x,P.y-10-o.y)<30){award(o);fxItems.splice(i,1)}else if(o.life<=0||o.y>cam.y+VH+80)fxItems.splice(i,1)}
+      if(Math.hypot(P.x-o.x,P.y-10-o.y)<30){if(o.sid){SPAWN.take.push(o.sid);AUD.sfx(o.gift?'coin':'gem')}else award(o);fxItems.splice(i,1)}else if(o.life<=0||o.y>cam.y+VH+80)fxItems.splice(i,1)}
     if(fxItems.length>300)fxItems.splice(0,fxItems.length-300);
     for(const b of abots){b.t-=dt;if(b.t<=0||Math.hypot(b.tx-b.x,b.ty-b.y)<8){b.t=2+Math.random()*4;for(let g=0;g<20;g++){const a=Math.random()*TAU,d=100+Math.random()*320,x=b.x+Math.cos(a)*d,y=b.y+Math.sin(a)*d;if(!hit(x,y)){b.tx=x;b.ty=y;break}}}
       const ex=b.tx-b.x,ey=b.ty-b.y,d=Math.hypot(ex,ey);b.mv=false;if(d>6){const nx=b.x+ex/d*95*dt,ny=b.y+ey/d*95*dt;let mv=0;if(!hit(nx,b.y)){b.x=nx;mv++}if(!hit(b.x,ny)){b.y=ny;mv++}if(mv){b.mv=true;b.wk+=95*dt*.11;b.dir=Math.abs(ex)>Math.abs(ey)?(ex<0?2:3):(ey<0?1:0)}else b.t=0}}
@@ -6601,6 +6618,8 @@ function renderSettings(v){
   const lg=el('div','panel');lg.style.cssText='max-width:760px;margin-top:14px';lg.append(el('h2','','Game library'));
   const n=GAMES.filter(g=>g.lib).length;lg.append(el('p','note',n?n+' games from the site\'s games.json.':LIBG.err?'games.json has a problem: '+LIBG.err:'No library games yet: add a games.json next to server.js.'));v.append(lg);
 }
+/* server-made staff spawns: the lobby registers SPAWN.add while it is open */
+const SPAWN={add:null,take:[],sent:0};
 /* ---------- Anti-cheat: integrity checks inside the page ----------
    A determined cheater can strip these out, so they only report (the server saves a replay for staff); they never punish.
    They catch the usual tricks: typing into the console to change coins or staff effects, calling game functions from the
@@ -6611,7 +6630,7 @@ const INTEG=(()=>{
     try{if(NET.online())NET.sendRaw({t:'ac.self',why,detail:String(detail||'').slice(0,160)})}catch(e){}};
   const isNative=f=>{try{return typeof f==='function'&&/\{\s*\[native code\]\s*\}\s*$/.test(fnStr.call(f))}catch(e){return false}};
   /* code typed into the console or run by a userscript/extension shows up in the call stack like this */
-  const FOREIGN=/<anonymous>:\d|\beval at\b|debugger eval code|^\s*@\s*$|userscript|tampermonkey|greasemonkey|violentmonkey|chrome-extension:\/\/|moz-extension:\/\/|safari-web-extension:\/\//im;
+  const FOREIGN=/<anonymous>:\d|\beval at\b|^(?:global|eval) code@|debugger eval code|^\s*@\s*$|userscript|tampermonkey|greasemonkey|violentmonkey|chrome-extension:\/\/|moz-extension:\/\/|safari-web-extension:\/\//im;
   const guard=name=>{if(!on)return;let st='';try{st=new Error().stack||''}catch(e){}if(FOREIGN.test(st))report('console call','called '+name+' from outside the game');};
   const NAT=[['requestAnimationFrame',window,'requestAnimationFrame'],['performance.now',performance,'now'],['Date.now',Date,'now'],['Math.random',Math,'random'],['setTimeout',window,'setTimeout'],['setInterval',window,'setInterval'],
     ['WebSocket.send',WebSocket.prototype,'send'],['JSON.parse',JSON,'parse'],['JSON.stringify',JSON,'stringify'],['Function.toString',Function.prototype,'toString'],['drawImage',window.CanvasRenderingContext2D.prototype,'drawImage']];
@@ -6638,7 +6657,9 @@ const INTEG=(()=>{
     start(){if(on)return;on=true;stfOk={...STF};
       own=[['setCoins',()=>setCoins],['ECON.ask',()=>ECON.ask],['ECON.earn',()=>ECON.earn],['ECON.spend',()=>ECON.spend],['NET.sendRaw',()=>NET.sendRaw],['admApply',()=>admApply],['drawAvatar',()=>drawAvatar]].map(([n,g])=>[n,g,g()]);
       watchDom();setInterval(check,2000)},
-    stfSet(){stfOk={...STF}}};
+    stfSet(){stfOk={...STF}},
+    /* a new sign-in starts fresh, so reports land on that account and not on the guest before it */
+    reset(){last.clear()}};
 })();
 const ACC=(()=>{
   let n=0,dt=0;const reqs=new Map(),subs=new Set();
@@ -6654,12 +6675,12 @@ const ACC=(()=>{
   const done=(m,v)=>{const r=reqs.get(m.req);if(r){reqs.delete(m.req);r(v)}};
   const quiet=c=>{coins=Math.max(0,Math.floor(c));if(ECON.srv)ECON.srv.coins=coins;shown=coins;store.set('coins',coins);$('#bal').textContent=coins.toLocaleString();dailyState()};
   function applyWallet(u){ECON.enter(u);quiet(+u.coins||0);xp=+u.xp||0;store.set('xp',xp);drawLv();owned=Array.isArray(u.owned)&&u.owned.length?u.owned.slice():DEFAULT_COS.slice();eq={...eq,...(u.eq||{})};store.set('owned',owned);store.set('eq',eq)}
-  const signed=(v)=>{signedIn=v;if(!v){try{if(CALL.id)CALL.leave(true);gcClose()}catch(e){}A.gcs=[];A.gconv={};if(WMEM.acct)ECON.leave();banSet(0);banPage(null);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
+  const signed=(v)=>{signedIn=v;if(!v){setDisg(null);try{if(CALL.id)CALL.leave(true);gcClose()}catch(e){}A.gcs=[];A.gconv={};if(WMEM.acct)ECON.leave();banSet(0);banPage(null);signedOwner=false;signedStaff='';A.name=null;A.info=null;A.friends=[];A.ledger=[];user=A.guest}setUser();fire('auth')};
   A.config=m=>{if(Array.isArray(m.channels))A.chans=m.channels;if(m.limits)A.limits=m.limits};
   A.onWelcome=()=>{if(A.token)NET.sendRaw({t:'auth.token',token:A.token});if(A.cur)NET.sendRaw({t:'g.join',ch:A.cur});fire('conn')};
   A.onClose=()=>fire('conn');
   A.msg=m=>{switch(m.t){
-    case'auth.ok':A.name=m.user.name;A.info=m.user;banSet(m.user.ban||0);banPage(m.user.ban>Date.now()?m.user.banInfo:null);A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
+    case'auth.ok':A.name=m.user.name;A.info=m.user;banSet(m.user.ban||0);banPage(m.user.ban>Date.now()?m.user.banInfo:null);setDisg(m.user.disg);INTEG.reset();A.friends=m.friends||[];A.ledger=m.ledger||[];if(m.token){A.token=m.token;store.set('token',m.token)}
       applyWallet(m.user);user=A.name;signedIn=true;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();done(m,{ok:true});fire('auth');fire('friends');break;
     case'auth.err':if(!reqs.has(m.req)){A.token='';store.set('token','')}done(m,{ok:false,err:m.err});break;
     case'auth.out':signed(false);break;
@@ -6681,6 +6702,7 @@ const ACC=(()=>{
       if(m.m.f&&m.m.f!==A.name&&GCUI.open!==m.id){const g=A.gcs.find(x=>x.id===m.id);toast('👥 '+(g?g.name:'Group')+' · '+m.m.f+': '+(m.m.k==='party'?'party invite':m.m.t));AUD.sfx('coin')}
       if(GCUI.open===m.id)NET.sendRaw({t:'gc.read',id:m.id});break}
     case'gc.res':done(m,m);break;
+    case'spawn.items':if(SPAWN.add)SPAWN.add(m);break;
     case'call.ring':case'call.ringend':case'call.state':case'call.joined':case'call.left':case'call.declined':case'call.signal':case'call.end':case'call.status':CALL.msg(m);break;
     case'dm.history':A.conv[String(m.with).toLowerCase()]=m.msgs||[];fire('dm');break;
     case'dm.msg':{const k=String(m.with).toLowerCase();(A.conv[k]=A.conv[k]||[]).push(m.m);if(A.conv[k].length>80)A.conv[k].shift();fire('dm');
@@ -6689,7 +6711,7 @@ const ACC=(()=>{
     case'user.eventend':eventEnded();break;
     case'friend.res':if(!NET.fail(m.req,m.err))done(m,m);break;
     case'gift.res':case'email.res':case'reset.res':case'report.res':case'admin.res':case'econ.res':case'appeal.res':done(m,m);break;
-    case'acct.push':if(m.coins!=null)setCoins(m.coins,true);if(m.owned){owned=m.owned.slice();store.set('owned',owned);if(ECON.srv)ECON.srv.owned=owned.slice()}toast('The owner updated your account');fire('wallet');break;
+    case'acct.push':if('disg' in m){setDisg(m.disg);fire('disg');break}if(m.coins!=null)setCoins(m.coins,true);if(m.owned){owned=m.owned.slice();store.set('owned',owned);if(ECON.srv)ECON.srv.owned=owned.slice()}toast('The owner updated your account');fire('wallet');break;
     case'user.update':A.info=m.user;signedOwner=!!(m.user.owner||m.user.admin);signedStaff=m.user.staff||'';setUser();fire('auth');break;
     case'gift.in':setCoins(coins+m.amount,true);A.ledger.push({t:Date.now(),text:'Received '+m.amount+' coins from '+m.from});toast(m.from+' gifted you '+m.amount+' coins!');AUD.sfx('coin');fire('wallet');break;
     case'wallet.set':ECON.apply(m);fire('wallet');break;
@@ -7132,8 +7154,8 @@ function renderAdmin(v){
   const stopAll=()=>{clearInterval(timer);if(off){off();off=null}if(ACC.cur){NET.sendRaw({t:'g.leave',ch:ACC.cur});ACC.cur=null}};
   const setTab=t=>{stopAll();tab=t;draw()};
   function draw(){
-    tabs.innerHTML='';[['over','Overview'],...(OWN?[['ev','🎡 Event']]:[]),['pl','Players'],['chat','Chat'],['dm','Messages'],['rep','Reports'],['ac','🛡️ Anti-cheat'],['ap','Appeals'],['log','Audit log']].forEach(([k,n])=>tabs.append(btn(n,k===tab?'':'alt',()=>setTab(k))));
-    body.innerHTML='';({over:overview,ev:eventTab,pl:players,chat:chat,dm:dms,rep:reports,ac:anticheat,ap:appeals,log:audit})[tab]();
+    tabs.innerHTML='';[['over','Overview'],...(OWN?[['ev','🎡 Event']]:[]),['pl','Players'],['chat','Chat'],['dm','Messages'],['rep','Reports'],['ac','🛡️ Anti-cheat'],['ap','Appeals'],['dg','🥸 Disguise'],['log','Audit log']].forEach(([k,n])=>tabs.append(btn(n,k===tab?'':'alt',()=>setTab(k))));
+    body.innerHTML='';({over:overview,ev:eventTab,pl:players,chat:chat,dm:dms,rep:reports,ac:anticheat,ap:appeals,dg:disguise,log:audit})[tab]();
   }
   /* direct messages between players, for safety checks (reading one is written to the audit log) */
   function dms(){
@@ -7271,6 +7293,28 @@ function renderAdmin(v){
         btn('Keep banned','alt',async()=>{const z=await call('appeal',{name:x.name,act:'keep',reply:rp.value,cat:cat.value,reason:rs.value});if(z.ok){toast('The ban stays. '+x.name+' can see your answer.');draw()}}));
       d.append(b,sm,q,rp,el('div','note','If you keep the ban, you can change what they see:'),cat,rs,row);p.append(d)});
     body.append(p);
+  }
+  /* disguise: hide your rainbow name, or look like one of the game's bots */
+  function disguise(){
+    const p=box('🥸 Disguise');
+    p.append(el('p','note','Only you change: other players see you this way in the lobby, the casino, chat bubbles and matches. Staff still see your real account name in the admin panel, and everything you do is still logged.'));
+    const prev=el('div','dgprev'),cv=document.createElement('canvas');cv.width=cv.height=110;const pl=el('div','dgname');prev.append(cv,pl);
+    const paint=()=>{const cx=cv.getContext('2d');cx.clearRect(0,0,110,110);const L=myLook();cx.save();cx.scale(1.5,1.5);try{drawAvatar(cx,36,64,{skin:L.skin,rainbow:!!L.rain,pat:L.pat,hat:L.hat,dir:0,s:1,t:performance.now()/1000})}catch(e){}cx.restore();
+      pl.innerHTML='';const n=el('span');if(DISG.bot){const t=el('span','dgbot','BOT');n.textContent=DISG.bot.name;n.style.color='#7fc4ff';pl.append(t,n)}else{n.textContent=staffMark(shownSelfStaff())+'✓ '+user;if(shownSelfStaff())n.className='rb';pl.append(n)}};
+    p.append(prev);
+    const call2=async o=>{const r=await call('disguise',o);if(r.ok){setDisg(r.disg);paint();draw()}};
+    p.append(el('h3','','Rainbow name'));
+    p.append(el('div','row',''));p.lastChild.append(btn(DISG.rb?'🌈 Showing: hide it':'🌈 Hidden: show it',DISG.rb?'alt':'gold',()=>call2({rb:!DISG.rb})));
+    if(DISG.bot)p.append(el('p','note','While you are disguised as a bot your rainbow name is hidden anyway.'));
+    p.append(el('h3','','Disguise as a bot'));
+    p.append(el('p','note','Picks a bot name and that bot\'s look the same way the game makes its bots. Your name turns blue with the BOT tag, like the real bots.'));
+    const row=el('div','row');row.append(btn('🎲 Random bot',DISG.bot?'alt':'gold',()=>{const b=botCos(1+Math.floor(Math.random()*1e6));call2({bot:{name:b.name,look:{skin:b.skin,pat:b.pat,hat:b.hat,tr:b.tr,kf:b.kf,rain:false}}})}));
+    if(DISG.bot){row.append(btn('🎲 Same name, new look','alt',()=>{const b=botCos(1+Math.floor(Math.random()*1e6));call2({bot:{name:DISG.bot.name,look:{skin:b.skin,pat:b.pat,hat:b.hat,tr:b.tr,kf:b.kf,rain:false}}})}),btn('Stop the disguise','alt',()=>call2({bot:'off'})))}
+    p.append(row);
+    const sel=el('select');sel.setAttribute('aria-label','Bot name');sel.style.cssText='background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit';
+    BOTNAMES.forEach(n=>{const o=el('option','',n);o.value=n;if(DISG.bot&&DISG.bot.name===n)o.selected=true;sel.append(o)});
+    const r2=el('div','row');r2.append(el('span','note','Or pick the name:'),sel,btn('Use it','alt',()=>{const b=botCos(1+Math.floor(Math.random()*1e6));const L=DISG.bot?DISG.bot.look:{skin:b.skin,pat:b.pat,hat:b.hat,tr:b.tr,kf:b.kf,rain:false};call2({bot:{name:sel.value,look:L}})}));p.append(r2);
+    body.append(p);paint();
   }
   async function audit(){
     const r=await call('audit');if(tab!=='log'||!r.ok)return;const p=box('Audit log');if(!r.log.length)p.append(el('p','note','Nothing yet.'));

@@ -155,7 +155,14 @@ const key=n=>String(n||'').toLowerCase();
 const validName=n=>/^[A-Za-z0-9_]{3,16}$/.test(n)&&!RESERVED.has(n.toLowerCase());
 const cosList=a=>Array.isArray(a)?[...new Set(a.filter(x=>typeof x==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(x)))].slice(0,200):['s_blue','h_none','h_cap','t_none','k_none'];
 const eqObj=e=>{const o={skin:'s_blue',hat:'h_cap',trail:'t_none',kill:'k_none'};if(e&&typeof e==='object')for(const k in o)if(typeof e[k]==='string'&&/^[a-z]_[a-z0-9]{1,16}$/.test(e[k]))o[k]=e[k];return o};
-const profile=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,staff:staffOf(c.acct),skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none',
+/* staff disguise: a staff account can hide its rainbow name, or look like one of the game's bots (bot name, bot look, blue name, BOT tag) */
+const BOT_NAMES=['Nova','Rift','Kilo','Pixel','Juno','Echo','Zed','Mika','Ace','Blip','Rook','Vex','Onyx','Jax','Luna','Finch','Taro','Skye'];
+const disgOf=a=>a&&staffOf(a)&&a.disg&&typeof a.disg==='object'?a.disg:null;
+const shownStaff=a=>{const d=disgOf(a);return d&&(d.bot||d.rb===false)?'':staffOf(a)};
+const lookFields=p=>({skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none',
+  pat:/^[a-z]{2,10}$/.test(p&&p.pat)?p.pat:'',tr:/^t_[a-z]{2,12}$/.test(p&&p.tr)?p.tr:'t_none',kf:/^k_[a-z]{2,12}$/.test(p&&p.kf)?p.kf:'k_none'});
+const profile=(c,p)=>{const d=disgOf(c.acct);if(d&&d.bot)return{id:c.id,name:d.bot.name,acct:false,staff:'',bot:true,...lookFields(d.bot.look),pt:''};return profile0(c,p)};
+const profile0=(c,p)=>({id:c.id,name:c.acct?c.acct.name:sName(p&&p.name),acct:!!c.acct,staff:shownStaff(c.acct),skin:/^#[0-9a-f]{6}$/i.test(p&&p.skin)?p.skin:'#4f8cff',rain:!!(p&&p.rain),hat:/^h_[a-z]{2,12}$/.test(p&&p.hat)?p.hat:'h_none',
   pat:/^[a-z]{2,10}$/.test(p&&p.pat)?p.pat:'',tr:/^t_[a-z]{2,12}$/.test(p&&p.tr)?p.tr:'t_none',kf:/^k_[a-z]{2,12}$/.test(p&&p.kf)?p.kf:'k_none',
   pt:c.party?sha('pt:'+c.party).slice(0,8):''});   /* pt: a tag shared by party members (not the join code) so games can put them on one team */
 const pub=r=>({id:r.id,kind:r.kind,name:r.name,max:r.max,priv:false,count:r.members.size});
@@ -170,7 +177,7 @@ const maskEmail=e=>{if(!e)return'';const[u,d]=e.split('@');return u[0]+'***@'+d}
 const mkCode=()=>String(crypto.randomInt(0,1000000)).padStart(6,'0');
 const hCode=(c,salt)=>sha(c+':'+salt);
 const timingEq=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b)};
-const userView=a=>({rew:rewView(a),ban:a.ban>Date.now()?a.ban:0,banInfo:banView(a),name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
+const userView=a=>({disg:disgOf(a)||null,rew:rewView(a),ban:a.ban>Date.now()?a.ban:0,banInfo:banView(a),name:a.name,coins:a.coins,xp:a.xp,owned:a.owned,eq:a.eq,created:a.created,owner:a.key===OWNER_KEY&&OWNER_PW.length>=12,admin:!!a.admin,staff:staffOf(a),email:maskEmail(a.email),emailVerified:!!a.emailVerified,mail:mailMode!=='off'});
 const revokeTokens=a=>{for(const h in db.tokens)if(db.tokens[h].k===a.key)delete db.tokens[h]};
 const kickAccount=(a,reason)=>{const oc=online.get(a.key);if(oc){oc.send({t:'kicked',reason});oc.kill(1000,'signed out')}};
 function ledger(a,text){a.ledger.push({t:Date.now(),text});if(a.ledger.length>50)a.ledger.shift()}
@@ -247,7 +254,7 @@ function enter(c,room,p,req){
   if(c.room)leaveRoom(c);
   if(room.locked){c.send({t:'deny',room:room.id,req,err:'That match has already started.'});return false}
   if(room.members.size>=room.max){c.send({t:'deny',room:room.id,req,err:'That room is full.'});return false}
-  c.p=profile(c,p);
+  c.lastP=p;c.p=profile(c,p);
   const others=[...room.members].map(x=>x.p);
   room.members.add(c);c.room=room.id;if(!room.master)room.master=c;
   if(room.ownerKey&&c.acct&&c.acct.key===room.ownerKey&&room.master!==c){room.master=c;broadcast(room,{t:'master',room:room.id,id:c.id},c)}
@@ -316,9 +323,27 @@ function recEnd(r,R){clearTimeout(R.timer);if(r.recs){r.recs=r.recs.filter(x=>x!
     const withClip=db.ac.filter(x=>x.clip);while(withClip.length>30){const o=withClip.shift();fs.unlink(path.join(CLIPS,o.clip),()=>{});clipMem.delete(o.clip);o.clip=null;o.rec='deleted (old)'}
     while(clipMem.size>12)clipMem.delete(clipMem.keys().next().value);touch();
     for(const x of conns.values())if(staffLevel(x))x.send({t:'ac.new',id:f.id,name:f.name,why:f.why,ready:true})})}
+/* ---------- staff item spawns in the lobby, made and paid on the server ----------
+   The page asks for items while the staff effect is on; the server makes each one (id, place, value), and pays only for
+   items it made, once, within 35 seconds. A page cannot invent items or claim more than were made. */
+const SP_DAY=20000;
+function spawnMsg(c,m){const now=Date.now(),a=c.acct;if(!a)return;const r=c.room&&rooms.get(c.room);if(!r||r.kind!=='hub')return;
+  const S=c.spItems||(c.spItems=new Map());for(const[id,it]of S)if(now-it.at>35e3)S.delete(id);
+  const val=g=>(g?15:3)*((c.gold||0)>now?5:1);
+  if(m.t==='spawn.req'){const hold=m.mode==='hold';
+    if(hold?!(c.spawnFx&&c.spawnFx.until>now):!((c.rainFx||0)>now))return;
+    const W=c.spW||(c.spW=[]);while(W.length&&now-W[0]>1000)W.shift();if(W.length>=(hold?12:3))return;W.push(now);
+    const x=num(m.x,0,2400),y=num(m.y,-100,1800),w=num(m.w||0,0,2400),out=[];
+    for(let i=0;i<(hold?2:5)&&S.size<400;i++){const gift=hold?(c.spawnFx.v==='both'?Math.random()<.5:c.spawnFx.v==='gift'):Math.random()<.4;
+      const id=(c.spN=(c.spN||0)+1),it={at:now,gift,v:val(gift),x:hold?x+(Math.random()-.5)*34:x+Math.random()*w,y:hold?y+(Math.random()-.5)*34:y};S.set(id,it);out.push([id,Math.round(it.x),Math.round(it.y),gift?1:0])}
+    if(out.length)c.send({t:'spawn.items',mode:hold?'hold':'rain',items:out});return}
+  if(m.t==='spawn.take'){const ids=Array.isArray(m.ids)?m.ids.slice(0,60):[];let sum=0;for(const id of ids){const it=S.get(+id);if(it){sum+=it.v;S.delete(+id)}}
+    if(!sum)return;const rw=rewOf(a);rw.by.spawn=(rw.by.spawn|0);if(rw.by.spawn>=SP_DAY)return c.send({t:'notice',text:'That is all the coins spawned items can give today.'});
+    sum=Math.min(sum,SP_DAY-rw.by.spawn);rw.by.spawn+=sum;addCoins(a,sum);walletPush(c,a);return}
+}
 function acMsg(c,m){const now=Date.now();
   if(m.t==='ac.self'){   /* the page's own integrity checks: console tampering, replaced functions, injected scripts */
-    const why=clean(m.why,40)||'client',k='self:'+c.id+':'+why;if(now-(acSusp.get(k)||0)<120e3)return;acSusp.set(k,now);acReport(c,why,clean(m.detail,160));return}
+    const why=clean(m.why,40)||'client',k='self:'+(c.acct?c.acct.key:'ip:'+c.ip)+':'+why;if(now-(acSusp.get(k)||0)<120e3)return;acSusp.set(k,now);acReport(c,why,clean(m.detail,160));return}
   if(m.t==='ac.suspect'){   /* another player's game saw something impossible (speed, teleport, aim). It only starts a recording. */
     const tc=conns.get(String(m.target||''));if(!tc||tc===c||!c.room||tc.room!==c.room)return;
     if(tc.fxAt&&now-tc.fxAt<36e5)return;   /* staff gave them speed or flying */
@@ -625,7 +650,7 @@ function globalMsg(c,m){
     const now=Date.now();c.ctok=Math.min(LIM.chatBurst,c.ctok+(now-c.clast)/1000*LIM.chatPerSec);c.clast=now;
     if(c.ctok<1)return c.send({t:'notice',text:'You are chatting too fast.'});
     const text=sChat(m.text);if(!text)return;c.ctok--;
-    const msg={from:a.name,text,ts:now,staff:staffOf(a)};ghist[ch].push(msg);if(ghist[ch].length>50)ghist[ch].shift();
+    const msg={from:a.name,text,ts:now,staff:shownStaff(a)};ghist[ch].push(msg);if(ghist[ch].length>50)ghist[ch].shift();
     for(const x of conns.values())if(x.gch.has(ch))x.send({t:'g.msg',ch,...msg});
   }
 }
@@ -844,6 +869,14 @@ function adminMsg(c,m){
       if(act==='keep'){a.appeal.status='kept';a.appeal.reply=clean(m.reply,300);applyBan(a,a.ban,BAN_CATS.includes(m.cat)?m.cat:a.banCat,m.reason!=null&&String(m.reason).trim()?m.reason:a.banReason);
         audit('appeal: kept ban',a.name,a.banCat+' · '+String(a.banReason).slice(0,60));touch();return ok({})}
       return no('Pick lift or keep.')}
+    case'admin.disguise':{const a=c.acct,d=a.disg&&typeof a.disg==='object'?a.disg:(a.disg={rb:true,bot:null});
+      if(typeof m.rb==='boolean')d.rb=m.rb;
+      if(m.bot==='off')d.bot=null;
+      else if(m.bot&&typeof m.bot==='object'){const name=String(m.bot.name||'');if(!BOT_NAMES.includes(name))return no('Pick one of the bot names.');d.bot={name,look:lookFields(m.bot.look)}}
+      touch();audit('disguise',a.name,d.bot?'as bot '+d.bot.name:'off'+(d.rb===false?', rainbow hidden':''));
+      /* everyone in the room sees the change right away */
+      if(c.room){const r=rooms.get(c.room);c.p=profile(c,c.lastP);if(r)for(const x of r.members)x.send({t:'pupd',room:r.id,p:c.p})}
+      c.send({t:'acct.push',disg:disgOf(a)});return ok({disg:disgOf(a),bots:BOT_NAMES})}
     case'admin.ac':return ok({list:db.ac.filter(f=>m.all||f.open).slice(-100).reverse()});
     case'admin.acclip':{const f=db.ac.find(x=>x.id===m.id);if(!f||!f.clip)return no('There is no recording for this one.');const tk=crypto.randomBytes(16).toString('hex');
       clipTickets.set(tk,{file:f.clip,exp:Date.now()+15*60e3});for(const [k,v] of clipTickets)if(v.exp<Date.now())clipTickets.delete(k);return ok({path:'/clip/'+tk})}
@@ -855,7 +888,8 @@ function adminMsg(c,m){
       a.muted=mi>0?Date.now()+mi*60000:0;const oc=online.get(a.key);if(oc)oc.muteUntil=a.muted;audit(mi>0?'mute':'unmute',a.name,mi>0?mi+' min':'');touch();return ok({})}
     case'admin.fx':{const f=cleanFx(m.fx);if(!f)return no('Unknown effect.');if(f.k==='jackpot'&&lvl<2)return no('Only the owner can set jackpots.');
       const names=new Set((Array.isArray(m.names)?m.names:[]).slice(0,60).map(x=>key(x))),list=m.scope==='list';let n=0;
-      for(const x of conns.values()){if(list){const a1=x.p?key(x.p.name):'',a2=x.acct?key(x.acct.name):'';if(!names.has(a1)&&!names.has(a2))continue}if(f.k==='jackpot'||f.k==='gold'){const until=f.v===false?0:Date.now()+(f.dur?f.dur*1000:6*36e5);if(f.k==='jackpot')x.jack=until;else x.gold=until}if(f.k==='clear'){x.jack=0;x.gold=0}if(['speed','fly','size','god'].includes(f.k))x.fxAt=Date.now();
+      for(const x of conns.values()){if(list){const a1=x.p?key(x.p.name):'',a2=x.acct?key(x.acct.name):'';if(!names.has(a1)&&!names.has(a2))continue}if(f.k==='jackpot'||f.k==='gold'){const until=f.v===false?0:Date.now()+(f.dur?f.dur*1000:6*36e5);if(f.k==='jackpot')x.jack=until;else x.gold=until}
+        if(f.k==='spawn')x.spawnFx=['gem','gift','both'].includes(f.v)?{v:f.v,until:Date.now()+(f.dur?f.dur*1000:6*36e5)}:null;if(f.k==='rain')x.rainFx=Date.now()+(f.dur?f.dur*1000:30e3);if(f.k==='clear'){x.jack=0;x.gold=0;x.spawnFx=null;x.rainFx=0}if(f.k==='clear'){x.jack=0;x.gold=0}if(['speed','fly','size','god'].includes(f.k))x.fxAt=Date.now();
         x.send({t:'user.fx',fx:{...f,by:c.acct.name}});n++}
       audit('effect',list?'whitelist':'everyone',f.k+(f.v!==undefined?' '+f.v:''));return ok({n})}
     case'admin.poll':{if(poll)return no('A poll is already running.');const q=clean(m.q,90),a=clean(m.a,28),b=clean(m.b,28);if(!q||!a||!b)return no('Fill in the question and both options.');
@@ -898,6 +932,7 @@ async function handle(c,m){
   if(t==='wallet.sync')return walletSync(c,m);
   if(t.startsWith('econ.')||t.startsWith('casino.'))return econMsg(c,m);
   if(t.startsWith('ac.'))return acMsg(c,m);
+  if(t.startsWith('spawn.'))return spawnMsg(c,m);
   if(t==='ban.appeal')return appealMsg(c,m);
   if(t==='gift')return gift(c,m);
   if(t==='poll.vote'){if(poll&&Date.now()<poll.end&&(m.c==='a'||m.c==='b'))poll.votes.set(c.acct?'a:'+c.acct.key:'c:'+c.id,m.c);return}
